@@ -1,41 +1,79 @@
-"""
-Eternia Backend — FastAPI Application
-AI Companion Platform
-"""
-from fastapi import FastAPI
+"""Eternia AI Companion Backend Application Entrypoint."""
+
+import logging
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from backend.app.api.routes import api_router
+from backend.app.core.config import settings
+from backend.app.core.errors import AppError
+from backend.app.services.vector_service import vector_service
 
-from app.core.config import settings
-from app.api import router as api_router
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("eternia")
 
 
-def create_app() -> FastAPI:
-    """Create and configure the FastAPI application."""
-    app = FastAPI(
-        title=settings.APP_NAME,
-        description="AI Companion Platform — Preserve and interact with the memories of loved ones.",
-        version="0.1.0",
-        docs_url="/docs" if settings.DEBUG else None,
-        redoc_url="/redoc" if settings.DEBUG else None,
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup and shutdown events."""
+    logger.info("Initializing Eternia AI Companion backend...")
+    try:
+        # Verify and ensure Qdrant collection is ready
+        vector_service.setup_collection()
+        logger.info("Qdrant vector collection verified on startup.")
+    except Exception as e:
+        logger.warning(f"Could not verify Qdrant collection on startup: {e}")
+    yield
+    logger.info("Eternia backend shutting down...")
+
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    description="Empathetic AI memory preservation and companion platform.",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Global Custom Exception Handler
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    return JSONResponse(
+        status_code=exc.status,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "status": exc.status,
+                "details": exc.details,
+            }
+        },
     )
 
-    # CORS
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
-    # Routes
-    app.include_router(api_router, prefix="/api")
-
-    @app.get("/health")
-    async def health_check():
-        return {"status": "healthy", "service": settings.APP_NAME}
-
-    return app
+@app.get("/health", tags=["Health"])
+def health_check():
+    """Service health check endpoint."""
+    return {
+        "status": "healthy",
+        "service": "Eternia AI Companion",
+        "environment": settings.ENVIRONMENT,
+    }
 
 
-app = create_app()
+# Include all API v1 routes
+app.include_router(api_router, prefix=settings.API_V1_STR)

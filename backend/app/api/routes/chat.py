@@ -1,71 +1,47 @@
-"""
-Chat routes — conversation with the AI avatar.
-"""
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials
+"""API route handlers for Grounded Avatar Chat."""
 
-from app.core.auth import security, verify_token
-from app.models.schemas import ChatRequest, ChatResponse
+from typing import Any, Dict, List
+from fastapi import APIRouter, Depends
+from backend.app.core.auth import get_current_user
+from backend.app.models.schemas import ChatRequest, ChatResponse
+from backend.app.services.chat_service import chat_service
 
-
-router = APIRouter()
+router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
-@router.post("/", response_model=ChatResponse)
-async def send_message(
-    request: ChatRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+@router.post("", response_model=ChatResponse)
+def send_message(
+    payload: ChatRequest,
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Send a message to an avatar and get a grounded response.
-    
-    The conversation pipeline:
-    1. Verify user has access to this avatar
-    2. Load session context from Redis (last 20 turns)
-    3. Transform query (HyDE + entity extraction)
-    4. Hybrid retrieval from Qdrant (vector + BM25)
-    5. Rerank and confidence-gate retrieved memories
-    6. Assemble system prompt (persona + grounding rules + memories)
-    7. Generate response via Gemini Flash
-    8. Self-verify: check response is grounded in retrieved context
-    9. Update session memory in Redis
-    10. Return response with grounding metadata
-    """
-    user = await verify_token(credentials)
-
-    # TODO: Implement full conversation pipeline (Month 3)
-    # For now, return a placeholder
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Chat engine will be implemented in Month 3",
+    """Send message to avatar, execute RAG retrieval, and return grounded response."""
+    return chat_service.generate_chat_response(
+        user_id=current_user["id"],
+        avatar_id=payload.avatar_id,
+        user_message=payload.message,
     )
 
 
-@router.get("/{avatar_id}/history")
-async def get_chat_history(
+@router.get("/{avatar_id}/history", response_model=List[Dict[str, Any]])
+def get_chat_history(
     avatar_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Get recent chat history for an avatar.
-    
-    Chat history is ephemeral by default (stored in Redis session).
-    Users can opt-in to persistent history (stored in Supabase).
-    """
-    user = await verify_token(credentials)
-
-    # TODO: Fetch from Redis (session) or Supabase (persisted)
-    return {"messages": [], "has_more": False}
+    """Get active session conversation turns from cache."""
+    return chat_service.get_session_history(
+        user_id=current_user["id"],
+        avatar_id=avatar_id,
+    )
 
 
-@router.delete("/{avatar_id}/history", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_chat_history(
+@router.delete("/{avatar_id}/history", status_code=204)
+def clear_chat_history(
     avatar_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Clear all chat history for an avatar."""
-    user = await verify_token(credentials)
-
-    # TODO: Clear Redis session + Supabase history
-    return
+    """Clear the active conversation buffer in session cache."""
+    chat_service.clear_session_history(
+        user_id=current_user["id"],
+        avatar_id=avatar_id,
+    )
+    return None

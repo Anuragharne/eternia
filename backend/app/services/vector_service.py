@@ -1,172 +1,187 @@
-"""
-Qdrant vector database service — manages memory embeddings.
-"""
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    VectorParams,
-    PointStruct,
-    Filter,
-    FieldCondition,
-    MatchValue,
-)
-from typing import List, Optional
-import uuid
+"""Qdrant Vector Database service for semantic memory retrieval."""
 
-from app.core.config import settings
+import logging
+from typing import Any, Dict, List, Optional
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
+from backend.app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class VectorService:
-    """
-    Manages vector operations in Qdrant for memory storage and retrieval.
-    
-    Each memory is stored as a vector with metadata including:
-    - user_id: namespace isolation (critical for privacy)
-    - avatar_id: which avatar this memory belongs to
-    - source_type: how the memory was created
-    - memory_date: when the memory occurred
-    - confidence_score: quality/reliability of the memory
-    - content: the original text (stored as payload)
-    """
+    """Manages Qdrant vector operations with mandatory tenant isolation."""
 
-    VECTOR_DIMENSION = 768  # text-embedding-004 dimension
+    def __init__(self, client: Optional[QdrantClient] = None):
+        self.collection_name = settings.QDRANT_COLLECTION
+        if client:
+            self.client = client
+        else:
+            self.client = QdrantClient(
+                url=settings.QDRANT_URL,
+                api_key=settings.QDRANT_API_KEY,
+                timeout=20,
+            )
 
-    def __init__(self):
-        self.client = QdrantClient(
-            url=settings.QDRANT_URL,
-            api_key=settings.QDRANT_API_KEY,
-        )
-        self.collection_name = settings.QDRANT_COLLECTION_NAME
+    def setup_collection(self) -> bool:
+        """Create the memories collection and payload indexes if not already present."""
+        try:
+            exists = self.client.collection_exists(collection_name=self.collection_name)
+            if not exists:
+                logger.info(f"Creating collection '{self.collection_name}' with 768-dim Cosine distance")
+                self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=models.VectorParams(
+                        size=768,
+                        distance=models.Distance.COSINE,
+                    ),
+                    optimizers_config=models.OptimizersConfigDiff(
+                        indexing_threshold=20000,
+                    ),
+                    on_disk_payload=True,
+                )
 
-    async def ensure_collection(self):
-        """Create the memories collection if it doesn't exist."""
-        collections = self.client.get_collections().collections
-        existing_names = [c.name for c in collections]
-
-        if self.collection_name not in existing_names:
-            self.client.create_collection(
+            # Ensure payload indexes exist
+            # 1. user_id (Mandatory isolation filter)
+            self.client.create_payload_index(
                 collection_name=self.collection_name,
-                vectors_config=VectorParams(
-                    size=self.VECTOR_DIMENSION,
-                    distance=Distance.COSINE,
+                field_name="user_id",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+
+            # 2. avatar_id (Scope filter)
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="avatar_id",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+
+            # 3. confidence_score (Quality filter)
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="confidence_score",
+                field_schema=models.PayloadSchemaType.FLOAT,
+            )
+
+            # 4. content (BM25 keyword search index)
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="content",
+                field_schema=models.TextIndexParams(
+                    type="text",
+                    tokenizer=models.TokenizerType.WORD,
+                    min_token_len=2,
+                    max_token_len=20,
+                    lowercase=True,
                 ),
             )
 
-    async def store_memory(
+            logger.info("Qdrant collection and payload indexes setup successfully.")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting up Qdrant collection: {e}")
+            raise e
+
+    def upsert_memory(
         self,
-        embedding: List[float],
-        user_id: str,
-        avatar_id: str,
-        memory_id: str,
-        content: str,
-        source_type: str = "manual",
-        memory_date: Optional[str] = None,
-        confidence_score: float = 1.0,
-        tags: Optional[List[str]] = None,
-    ) -> str:
-        """
-        Store a memory embedding in Qdrant.
-        
-        Args:
-            embedding: The vector embedding of the memory text.
-            user_id: Owner's user ID (for namespace isolation).
-            avatar_id: Which avatar this memory belongs to.
-            memory_id: Unique ID for this memory.
-            content: Original memory text (stored as searchable payload).
-            source_type: How the memory was created.
-            memory_date: When the memory occurred (ISO format string).
-            confidence_score: Quality/reliability score (0.0 to 1.0).
-            tags: Optional categorization tags.
-            
-        Returns:
-            The point ID in Qdrant.
-        """
-        point_id = str(uuid.uuid4())
+        point_id: str,
+        vector: List[float],
+        payload: Dict[str, Any],
+    ) -> bool:
+        """Upsert a single memory vector and payload into Qdrant."""
+        if "user_id" not in payload or "avatar_id" not in payload:
+            raise ValueError("Payload MUST contain 'user_id' and 'avatar_id' for isolation.")
+
+        point = models.PointStruct(
+            id=point_id,
+            vector=vector,
+            payload=payload,
+        )
 
         self.client.upsert(
             collection_name=self.collection_name,
-            points=[
-                PointStruct(
-                    id=point_id,
-                    vector=embedding,
-                    payload={
-                        "user_id": user_id,
-                        "avatar_id": avatar_id,
-                        "memory_id": memory_id,
-                        "content": content,
-                        "source_type": source_type,
-                        "memory_date": memory_date,
-                        "confidence_score": confidence_score,
-                        "tags": tags or [],
-                    },
-                )
-            ],
+            points=[point],
         )
+        return True
 
-        return point_id
-
-    async def search_memories(
+    def search_memories(
         self,
-        query_embedding: List[float],
-        avatar_id: str,
         user_id: str,
-        top_k: int = 20,
+        avatar_id: str,
+        query_vector: List[float],
+        limit: int = 5,
         min_confidence: float = 0.7,
-    ) -> List[dict]:
-        """
-        Search for relevant memories using vector similarity.
-        
-        Filters by user_id and avatar_id for privacy isolation.
-        Only returns memories above the confidence threshold.
-        
-        Args:
-            query_embedding: The vector embedding of the user's query.
-            avatar_id: Filter to this avatar's memories only.
-            user_id: Filter to this user's data only (privacy).
-            top_k: Number of results to return.
-            min_confidence: Minimum confidence score filter.
-            
-        Returns:
-            List of memory dicts with content, score, and metadata.
-        """
-        results = self.client.search(
-            collection_name=self.collection_name,
-            query_vector=query_embedding,
-            query_filter=Filter(
-                must=[
-                    FieldCondition(key="user_id", match=MatchValue(value=user_id)),
-                    FieldCondition(key="avatar_id", match=MatchValue(value=avatar_id)),
-                ]
-            ),
-            limit=top_k,
-            score_threshold=min_confidence,
+    ) -> List[Dict[str, Any]]:
+        """Dense vector search with strict tenant isolation and confidence gating."""
+        query_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="user_id",
+                    match=models.MatchValue(value=user_id),
+                ),
+                models.FieldCondition(
+                    key="avatar_id",
+                    match=models.MatchValue(value=avatar_id),
+                ),
+                models.FieldCondition(
+                    key="confidence_score",
+                    range=models.Range(gte=min_confidence),
+                ),
+            ]
         )
 
-        return [
-            {
-                "id": hit.id,
-                "score": hit.score,
-                "content": hit.payload.get("content", ""),
-                "source_type": hit.payload.get("source_type", "unknown"),
-                "memory_date": hit.payload.get("memory_date"),
-                "confidence_score": hit.payload.get("confidence_score", 0.0),
-                "tags": hit.payload.get("tags", []),
-            }
-            for hit in results
-        ]
+        results = self.client.query_points(
+            collection_name=self.collection_name,
+            query=query_vector,
+            query_filter=query_filter,
+            limit=limit,
+            with_payload=True,
+        )
 
-    async def delete_avatar_memories(self, avatar_id: str, user_id: str):
-        """Delete ALL memory vectors for a specific avatar. Used in consent revocation."""
+        memories = []
+        for hit in results.points:
+            payload = hit.payload or {}
+            memories.append(
+                {
+                    "point_id": hit.id,
+                    "score": hit.score,
+                    "memory_id": payload.get("memory_id"),
+                    "content": payload.get("content"),
+                    "source_type": payload.get("source_type"),
+                    "memory_date": payload.get("memory_date"),
+                    "confidence_score": payload.get("confidence_score"),
+                    "tags": payload.get("tags", []),
+                    "entities": payload.get("entities", []),
+                }
+            )
+
+        return memories
+
+    def delete_memory(self, point_id: str) -> bool:
+        """Delete a specific memory point by ID."""
         self.client.delete(
             collection_name=self.collection_name,
-            points_selector=Filter(
-                must=[
-                    FieldCondition(key="user_id", match=MatchValue(value=user_id)),
-                    FieldCondition(key="avatar_id", match=MatchValue(value=avatar_id)),
-                ]
+            points_selector=models.PointIdsList(points=[point_id]),
+        )
+        return True
+
+    def delete_avatar_memories(self, avatar_id: str) -> bool:
+        """Delete all vectors belonging to an avatar upon consent revocation."""
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="avatar_id",
+                            match=models.MatchValue(value=avatar_id),
+                        )
+                    ]
+                )
             ),
         )
+        return True
 
 
-# Singleton instance
+# Singleton vector service instance
 vector_service = VectorService()

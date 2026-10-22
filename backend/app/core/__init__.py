@@ -1,1 +1,4 @@
-"""Core package — configuration, security, and shared utilities."""
+"""Core utilities and configuration."""
+from backend.app.core.config import settings
+
+__all__ = ["settings"]

@@ -1,52 +1,49 @@
-"""
-Application configuration loaded from environment variables.
-"""
-from pydantic_settings import BaseSettings
+"""Application configuration module using Pydantic Settings."""
+
+from pathlib import Path
 from typing import List
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+ENV_FILE = BASE_DIR / ".env"
 
 
 class Settings(BaseSettings):
-    """Application settings with validation and defaults."""
+    """Eternia application settings loaded from environment or .env file."""
 
-    # App
-    APP_NAME: str = "Eternia"
-    APP_ENV: str = "development"
+    APP_NAME: str = "Eternia AI Companion"
+    ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    SECRET_KEY: str = "change-me-in-production"
+    API_V1_STR: str = "/api"
+
+    # Google Gemini AI
+    GEMINI_API_KEY: str
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     # Supabase
-    SUPABASE_URL: str = ""
-    SUPABASE_ANON_KEY: str = ""
-    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_URL: str
+    SUPABASE_ANON_KEY: str
+    SUPABASE_SERVICE_ROLE_KEY: str
+    SUPABASE_JWT_SECRET: str = ""
 
-    # Qdrant
-    QDRANT_URL: str = ""
-    QDRANT_API_KEY: str = ""
-    QDRANT_COLLECTION_NAME: str = "memories"
+    # Qdrant Vector DB
+    QDRANT_URL: str
+    QDRANT_API_KEY: str
+    QDRANT_COLLECTION: str = "memories"
 
-    # Google Gemini
-    GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
-
-    # AWS S3
-    AWS_ACCESS_KEY_ID: str = ""
-    AWS_SECRET_ACCESS_KEY: str = ""
-    AWS_REGION: str = "us-east-1"
-    S3_BUCKET_NAME: str = "eternia-uploads"
-
-    # Redis
-    REDIS_URL: str = ""
-
-    # ElevenLabs (V1.1)
-    ELEVENLABS_API_KEY: str = ""
+    # Redis (Upstash)
+    REDIS_URL: str
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=ENV_FILE if ENV_FILE.exists() else ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 
 settings = Settings()

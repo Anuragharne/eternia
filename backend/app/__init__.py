@@ -1,1 +1,2 @@
-"""App package."""
+"""Eternia AI Companion Backend Application."""
+__version__ = "0.1.0"

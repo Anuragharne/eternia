@@ -1,1 +1,3 @@
-"""Services package — business logic and external integrations."""
+"""
+Services package initialization.
+"""

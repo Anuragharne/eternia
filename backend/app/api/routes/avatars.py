@@ -1,155 +1,124 @@
-"""
-Avatar management routes.
-"""
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from fastapi.security import HTTPAuthorizationCredentials
+"""API route handlers for Avatar management."""
+
+import uuid
 from typing import List
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from backend.app.core.auth import get_current_user
+from backend.app.core.errors import AvatarNotFoundError, ForbiddenError
+from backend.app.models.database import get_supabase_admin_client
+from backend.app.models.schemas import AvatarCreate, AvatarUpdate, AvatarResponse
+from backend.app.services.vector_service import vector_service
 
-from app.core.auth import security, verify_token
-from app.models.schemas import AvatarCreate, AvatarResponse
+router = APIRouter(prefix="/avatars", tags=["Avatars"])
 
 
-router = APIRouter()
-
-
-@router.post("/", response_model=AvatarResponse, status_code=status.HTTP_201_CREATED)
-async def create_avatar(
-    avatar_data: AvatarCreate,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+@router.post("", response_model=AvatarResponse, status_code=201)
+def create_avatar(
+    payload: AvatarCreate,
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Create a new avatar.
-    
-    - For living subjects: the subject must be the authenticated user (self-creation only).
-    - For deceased subjects: the authenticated user is the family member creating on behalf.
-    """
-    user = await verify_token(credentials)
-    user_id = user["sub"]
+    """Create a new avatar persona."""
+    db = get_supabase_admin_client()
+    avatar_id = str(uuid.uuid4())
 
-    # TODO: Implement avatar creation in Supabase
-    # 1. Insert avatar record
-    # 2. Create consent record (pending)
-    # 3. Initialize empty Qdrant namespace
+    data = {
+        "id": avatar_id,
+        "owner_id": current_user["id"],
+        "name": payload.name,
+        "relationship": payload.relationship,
+        "subject_type": payload.subject_type,
+        "bio": payload.bio,
+        "personality_traits": payload.personality_traits,
+        "catchphrases": payload.catchphrases,
+        "consent_status": "pending",
+        "voice_status": "none",
+        "memory_count": 0,
+        "is_active": True,
+    }
 
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Avatar creation will be implemented with Supabase integration",
+    res = db.table("avatars").insert(data).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create avatar.")
+
+    return AvatarResponse(**res.data[0])
+
+
+@router.get("", response_model=List[AvatarResponse])
+def list_avatars(
+    current_user: dict = Depends(get_current_user),
+):
+    """List all active avatars belonging to the authenticated user."""
+    db = get_supabase_admin_client()
+    res = (
+        db.table("avatars")
+        .select("*")
+        .eq("owner_id", current_user["id"])
+        .eq("is_active", True)
+        .order("created_at", desc=True)
+        .execute()
     )
-
-
-@router.get("/", response_model=List[AvatarResponse])
-async def list_avatars(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
-    """List all avatars owned by the authenticated user."""
-    user = await verify_token(credentials)
-    user_id = user["sub"]
-
-    # TODO: Query Supabase for user's avatars
-    return []
+    return [AvatarResponse(**item) for item in res.data]
 
 
 @router.get("/{avatar_id}", response_model=AvatarResponse)
-async def get_avatar(
+def get_avatar(
     avatar_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Get a specific avatar by ID."""
-    user = await verify_token(credentials)
-
-    # TODO: Fetch avatar from Supabase, verify ownership
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Will be implemented with Supabase integration",
+    """Get details of a specific avatar."""
+    db = get_supabase_admin_client()
+    res = (
+        db.table("avatars")
+        .select("*")
+        .eq("id", avatar_id)
+        .eq("is_active", True)
+        .execute()
     )
+    if not res.data:
+        raise AvatarNotFoundError(avatar_id)
+
+    avatar = res.data[0]
+    if avatar["owner_id"] != current_user["id"]:
+        raise ForbiddenError("You do not own this avatar.")
+
+    return AvatarResponse(**avatar)
 
 
-@router.post("/{avatar_id}/photo")
-async def upload_photo(
+@router.patch("/{avatar_id}", response_model=AvatarResponse)
+def update_avatar(
     avatar_id: str,
-    file: UploadFile = File(...),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    payload: AvatarUpdate,
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Upload a reference photo for the avatar.
-    
-    Accepted formats: JPEG, PNG, WebP.
-    The photo is encrypted (AES-256) and stored in S3.
-    """
-    user = await verify_token(credentials)
+    """Update avatar personality traits, bio, or name."""
+    db = get_supabase_admin_client()
+    existing = db.table("avatars").select("owner_id").eq("id", avatar_id).execute()
+    if not existing.data:
+        raise AvatarNotFoundError(avatar_id)
+    if existing.data[0]["owner_id"] != current_user["id"]:
+        raise ForbiddenError("You do not own this avatar.")
 
-    # Validate file type
-    allowed_types = ["image/jpeg", "image/png", "image/webp"]
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type {file.content_type} not allowed. Use JPEG, PNG, or WebP.",
-        )
-
-    # TODO: 
-    # 1. Read file bytes
-    # 2. Encrypt with AES-256-GCM
-    # 3. Upload to S3 with user_id/avatar_id prefix
-    # 4. Run face detection to validate a face is present
-    # 5. Update avatar record with photo_url
-
-    return {"status": "uploaded", "message": "Photo uploaded successfully"}
+    update_data = {k: v for k, v in payload.dict(exclude_unset=True).items() if v is not None}
+    res = db.table("avatars").update(update_data).eq("id", avatar_id).execute()
+    return AvatarResponse(**res.data[0])
 
 
-@router.post("/{avatar_id}/voice")
-async def upload_voice(
+@router.delete("/{avatar_id}", status_code=204)
+def delete_avatar(
     avatar_id: str,
-    file: UploadFile = File(...),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Upload a voice reference recording for the avatar.
-    
-    Accepted formats: WAV, MP3, M4A, OGG, WebM.
-    Minimum 5 seconds of clear speech required.
-    """
-    user = await verify_token(credentials)
+    """Delete an avatar and purge all vector embeddings."""
+    db = get_supabase_admin_client()
+    existing = db.table("avatars").select("owner_id").eq("id", avatar_id).execute()
+    if not existing.data:
+        raise AvatarNotFoundError(avatar_id)
+    if existing.data[0]["owner_id"] != current_user["id"]:
+        raise ForbiddenError("You do not own this avatar.")
 
-    allowed_types = [
-        "audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp3",
-        "audio/mp4", "audio/m4a", "audio/ogg", "audio/webm",
-    ]
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Audio format {file.content_type} not supported.",
-        )
+    # Purge vectors
+    vector_service.delete_avatar_memories(avatar_id)
 
-    # TODO:
-    # 1. Read file bytes
-    # 2. Transcode to WAV if needed
-    # 3. Validate minimum duration (5s)
-    # 4. Noise reduction preprocessing
-    # 5. Encrypt and upload to S3
-    # 6. Extract speaker embedding (V1.1: send to ElevenLabs)
-    # 7. Update avatar voice_status to "cloned"
-
-    return {"status": "uploaded", "message": "Voice recording uploaded successfully"}
-
-
-@router.delete("/{avatar_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_avatar(
-    avatar_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
-    """
-    Delete an avatar and ALL associated data.
-    
-    This permanently removes:
-    - All photos and voice recordings from S3
-    - All memory vectors from Qdrant
-    - All database records
-    - The consent audit log is RETAINED for compliance.
-    """
-    user = await verify_token(credentials)
-
-    # TODO: Implement cascading deletion
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Will be implemented with Supabase integration",
-    )
+    # Soft delete in db (cascades memories)
+    db.table("avatars").update({"is_active": False}).eq("id", avatar_id).execute()
+    return None

@@ -1,107 +1,111 @@
-"""
-Consent management routes.
-"""
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import HTTPAuthorizationCredentials
+"""API route handlers for Consent and Ethical Compliance."""
 
-from app.core.auth import security, verify_token
-from app.models.schemas import ConsentCreate, ConsentResponse
+import uuid
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException
+from backend.app.core.auth import get_current_user
+from backend.app.core.errors import AvatarNotFoundError, ForbiddenError
+from backend.app.models.database import get_supabase_admin_client
+from backend.app.models.schemas import ConsentCreate, ConsentResponse
+from backend.app.services.vector_service import vector_service
+
+router = APIRouter(prefix="/consent", tags=["Consent"])
 
 
-router = APIRouter()
-
-
-@router.post("/", response_model=ConsentResponse, status_code=status.HTTP_201_CREATED)
-async def record_consent(
-    consent: ConsentCreate,
-    request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+@router.post("", response_model=ConsentResponse, status_code=201)
+def record_consent(
+    payload: ConsentCreate,
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Record consent for avatar creation.
-    
-    Consent is stored in an immutable, append-only audit log.
-    Each consent record captures:
-    - Timestamp
-    - IP address
-    - User agent
-    - Consent type (self or family attestation)
-    - What was acknowledged
-    
-    For living subjects (consent_type="self"):
-    - The authenticated user IS the subject
-    - Email/SMS verification required
-    
-    For deceased subjects (consent_type="family_attestation"):
-    - The authenticated user attests to their relationship
-    - Optional: obituary link or document upload
-    - 72-hour cooling period before avatar goes live
-    """
-    user = await verify_token(credentials)
+    """Record consent log (append-only) and verify avatar."""
+    db = get_supabase_admin_client()
 
-    client_ip = request.client.host if request.client else "unknown"
-    user_agent = request.headers.get("user-agent", "unknown")
+    # Verify avatar exists and user owns it
+    res = db.table("avatars").select("*").eq("id", payload.avatar_id).execute()
+    if not res.data:
+        raise AvatarNotFoundError(payload.avatar_id)
 
-    if not consent.acknowledged_ai_disclaimer:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You must acknowledge that this is an AI approximation, not the real person.",
-        )
+    avatar = res.data[0]
+    if avatar["owner_id"] != current_user["id"]:
+        raise ForbiddenError("You do not own this avatar.")
 
-    if not consent.acknowledged_data_usage:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You must acknowledge how your data will be used.",
-        )
+    log_id = str(uuid.uuid4())
+    status = "verified"
 
-    # TODO: Implement consent recording in Supabase
-    # 1. Insert into consent_logs (append-only table, no UPDATE/DELETE)
-    # 2. Update avatar consent_status
-    # 3. For deceased: start 72-hour cooling period
-    # 4. Log IP + user agent for audit trail
+    # Insert into append-only consent_logs table
+    consent_data = {
+        "id": log_id,
+        "avatar_id": payload.avatar_id,
+        "granted_by": current_user["id"],
+        "consent_type": payload.consent_type,
+        "consent_tier": payload.consent_tier,
+        "relationship_proof": payload.relationship_proof,
+        "ack_ai_disclaimer": payload.ack_ai_disclaimer,
+        "ack_data_usage": payload.ack_data_usage,
+        "status": status,
+        "granted_at": datetime.utcnow().isoformat(),
+    }
+    log_res = db.table("consent_logs").insert(consent_data).execute()
 
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Consent recording will be implemented in Month 4",
-    )
+    # Update avatar status
+    db.table("avatars").update({"consent_status": "verified"}).eq("id", payload.avatar_id).execute()
+
+    return ConsentResponse(**log_res.data[0])
 
 
 @router.get("/{avatar_id}", response_model=ConsentResponse)
-async def get_consent_status(
+def get_consent_status(
     avatar_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Get the current consent status for an avatar."""
-    user = await verify_token(credentials)
-
-    # TODO: Query consent_logs for this avatar
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Will be implemented with consent system",
+    """Retrieve the latest verified consent log for an avatar."""
+    db = get_supabase_admin_client()
+    res = (
+        db.table("consent_logs")
+        .select("*")
+        .eq("avatar_id", avatar_id)
+        .order("granted_at", desc=True)
+        .limit(1)
+        .execute()
     )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="No consent record found for this avatar.")
+
+    return ConsentResponse(**res.data[0])
 
 
-@router.post("/{avatar_id}/revoke", status_code=status.HTTP_200_OK)
-async def revoke_consent(
+@router.post("/{avatar_id}/revoke")
+def revoke_consent(
     avatar_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Revoke consent for an avatar.
-    
-    This triggers:
-    1. Avatar is immediately deactivated (no more conversations)
-    2. A new consent_log entry is created (type: "revocation")
-    3. Data deletion workflow is initiated:
-       - Voice embeddings deleted within 24 hours
-       - Photo references deleted within 24 hours
-       - Memory vectors deleted within 24 hours
-       - Consent audit log is RETAINED for compliance
-    """
-    user = await verify_token(credentials)
+    """Revoke consent: deactivate avatar, delete vectors, and record revocation log."""
+    db = get_supabase_admin_client()
+    res = db.table("avatars").select("owner_id").eq("id", avatar_id).execute()
+    if not res.data:
+        raise AvatarNotFoundError(avatar_id)
+    if res.data[0]["owner_id"] != current_user["id"]:
+        raise ForbiddenError("You do not own this avatar.")
 
-    # TODO: Implement consent revocation + cascading data deletion
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Consent revocation will be implemented in Month 4",
-    )
+    # 1. Insert revocation log
+    log_id = str(uuid.uuid4())
+    db.table("consent_logs").insert({
+        "id": log_id,
+        "avatar_id": avatar_id,
+        "granted_by": current_user["id"],
+        "consent_type": "revocation",
+        "consent_tier": "full_avatar",
+        "status": "revoked",
+        "granted_at": datetime.utcnow().isoformat(),
+    }).execute()
+
+    # 2. Update avatar status
+    db.table("avatars").update({
+        "consent_status": "revoked",
+        "is_active": False,
+    }).eq("id", avatar_id).execute()
+
+    # 3. Purge vector embeddings
+    vector_service.delete_avatar_memories(avatar_id)
+
+    return {"status": "revoked", "data_deletion": "initiated"}

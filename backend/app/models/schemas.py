@@ -1,124 +1,131 @@
-"""
-Pydantic models for request/response schemas.
-"""
-from pydantic import BaseModel, Field
-from typing import Optional, List, Literal
+"""Pydantic schemas for request and response models."""
+
 from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
+from pydantic import BaseModel, Field, UUID4
 
 
 # ============================================================
-# Auth
+# AVATAR SCHEMAS
 # ============================================================
+class AvatarBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    relationship: str = Field(..., min_length=1, max_length=100)
+    subject_type: Literal["living", "deceased"] = "deceased"
+    bio: Optional[str] = Field(None, max_length=2000)
+    personality_traits: List[str] = Field(default_factory=list)
+    catchphrases: List[str] = Field(default_factory=list)
 
-class UserProfile(BaseModel):
-    """User profile returned after authentication."""
+
+class AvatarCreate(AvatarBase):
+    pass
+
+
+class AvatarUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    relationship: Optional[str] = Field(None, min_length=1, max_length=100)
+    bio: Optional[str] = Field(None, max_length=2000)
+    personality_traits: Optional[List[str]] = None
+    catchphrases: Optional[List[str]] = None
+
+
+class AvatarResponse(AvatarBase):
     id: str
-    email: str
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-    created_at: datetime
-
-
-# ============================================================
-# Avatars
-# ============================================================
-
-class AvatarCreate(BaseModel):
-    """Request to create a new avatar."""
-    name: str = Field(..., min_length=1, max_length=100, description="Name of the person")
-    relationship: str = Field(..., description="User's relationship to this person (e.g., 'Mother', 'Father', 'Friend')")
-    subject_type: Literal["living", "deceased"] = Field(..., description="Whether the subject is living or deceased")
-    bio: Optional[str] = Field(None, max_length=2000, description="Brief description of the person")
-    personality_traits: Optional[List[str]] = Field(None, description="Key personality traits")
-    catchphrases: Optional[List[str]] = Field(None, description="Common phrases or sayings")
-
-
-class AvatarResponse(BaseModel):
-    """Avatar data returned to the client."""
-    id: str
-    name: str
-    relationship: str
-    subject_type: str
-    bio: Optional[str] = None
-    personality_traits: List[str] = []
-    catchphrases: List[str] = []
-    photo_url: Optional[str] = None
+    owner_id: str
     voice_status: Literal["none", "placeholder", "cloned"] = "none"
     consent_status: Literal["pending", "verified", "revoked"] = "pending"
+    photo_s3_key: Optional[str] = None
+    voice_s3_key: Optional[str] = None
     memory_count: int = 0
-    created_at: datetime
-    updated_at: datetime
+    persona_config: Dict[str, Any] = Field(default_factory=dict)
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 # ============================================================
-# Memories
+# MEMORY SCHEMAS
 # ============================================================
-
 class MemoryCreate(BaseModel):
-    """Request to add a new memory."""
     avatar_id: str
-    content: str = Field(..., min_length=1, max_length=10000, description="The memory text content")
-    source_type: Literal["manual", "journal", "chat_export", "photo_caption", "voice_transcript"] = "manual"
-    memory_date: Optional[datetime] = Field(None, description="When this memory occurred")
-    tags: Optional[List[str]] = Field(None, description="Optional tags for categorization")
+    content: str = Field(..., min_length=1, max_length=10000)
+    source_type: Literal[
+        "manual", "journal", "chat_export",
+        "photo_caption", "voice_transcript", "user_contributed"
+    ] = "manual"
+    memory_date: Optional[datetime] = None
+    tags: List[str] = Field(default_factory=list)
 
 
 class MemoryResponse(BaseModel):
-    """Memory data returned to the client."""
     id: str
     avatar_id: str
+    uploaded_by: str
     content: str
     source_type: str
     memory_date: Optional[datetime] = None
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     confidence_score: float = 1.0
-    created_at: datetime
+    qdrant_point_id: Optional[str] = None
+    extracted_entities: List[str] = Field(default_factory=list)
+    extracted_metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: Optional[datetime] = None
 
 
-# ============================================================
-# Chat
-# ============================================================
-
-class ChatMessage(BaseModel):
-    """A single chat message."""
-    role: Literal["user", "assistant"]
-    content: str
-    timestamp: datetime
-
-
-class ChatRequest(BaseModel):
-    """Request to send a message to an avatar."""
+class MemoryStatsResponse(BaseModel):
     avatar_id: str
-    message: str = Field(..., min_length=1, max_length=5000)
+    total_memories: int
+    source_breakdown: Dict[str, int]
+
+
+# ============================================================
+# CHAT SCHEMAS
+# ============================================================
+class ChatRequest(BaseModel):
+    avatar_id: str
+    message: str = Field(..., min_length=1, max_length=2000)
 
 
 class ChatResponse(BaseModel):
-    """Response from the avatar."""
-    avatar_id: str
     message: str
-    grounded: bool = Field(..., description="Whether the response is grounded in retrieved memories")
-    memories_used: int = Field(0, description="Number of memories retrieved for this response")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Response confidence score")
+    is_grounded: bool = True
+    memories_used: int = 0
+    confidence_score: float = 1.0
+    memory_ids_cited: List[str] = Field(default_factory=list)
 
 
 # ============================================================
-# Consent
+# CONSENT SCHEMAS
 # ============================================================
-
 class ConsentCreate(BaseModel):
-    """Record consent for avatar creation."""
     avatar_id: str
-    consent_type: Literal["self", "family_attestation"]
-    relationship_proof: Optional[str] = Field(None, description="Description of relationship proof provided")
-    acknowledged_ai_disclaimer: bool = Field(..., description="User acknowledges this is AI, not the real person")
-    acknowledged_data_usage: bool = Field(..., description="User acknowledges how data will be used")
+    consent_type: Literal["self", "family_attestation", "revocation"] = "self"
+    consent_tier: Literal["text", "voice", "full_avatar"] = "text"
+    relationship_proof: Optional[str] = None
+    ack_ai_disclaimer: bool = True
+    ack_data_usage: bool = True
 
 
 class ConsentResponse(BaseModel):
-    """Consent record."""
     id: str
     avatar_id: str
+    granted_by: str
     consent_type: str
+    consent_tier: str
     status: Literal["pending", "verified", "revoked"]
-    granted_at: datetime
-    ip_address: Optional[str] = None
+    cooling_period_ends: Optional[datetime] = None
+    granted_at: Optional[datetime] = None
+
+
+# ============================================================
+# ERROR ENVELOPE
+# ============================================================
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    status: int
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ErrorEnvelope(BaseModel):
+    error: ErrorDetail

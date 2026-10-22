@@ -1,115 +1,92 @@
-"""
-Memory management routes.
-"""
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from fastapi.security import HTTPAuthorizationCredentials
-from typing import List
+"""API route handlers for Memory ingestion and management."""
 
-from app.core.auth import security, verify_token
-from app.models.schemas import MemoryCreate, MemoryResponse
+from typing import List, Optional
+from fastapi import APIRouter, Depends, File, Query, UploadFile
+from backend.app.core.auth import get_current_user
+from backend.app.core.errors import AvatarNotFoundError, ForbiddenError
+from backend.app.models.database import get_supabase_admin_client
+from backend.app.models.schemas import MemoryCreate, MemoryResponse, MemoryStatsResponse
+from backend.app.services.memory_service import memory_service
+
+router = APIRouter(prefix="/memories", tags=["Memories"])
 
 
-router = APIRouter()
+def _verify_avatar_ownership(avatar_id: str, user_id: str):
+    db = get_supabase_admin_client()
+    res = db.table("avatars").select("owner_id").eq("id", avatar_id).execute()
+    if not res.data:
+        raise AvatarNotFoundError(avatar_id)
+    if res.data[0]["owner_id"] != user_id:
+        raise ForbiddenError("You do not own this avatar.")
 
 
-@router.post("/", response_model=MemoryResponse, status_code=status.HTTP_201_CREATED)
-async def add_memory(
-    memory: MemoryCreate,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+@router.post("", response_model=MemoryResponse, status_code=201)
+def add_memory(
+    payload: MemoryCreate,
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Add a new memory to an avatar's knowledge store.
-    
-    The memory goes through the ingestion pipeline:
-    1. Text is parsed and cleaned
-    2. Entities, relationships, and dates are extracted via LLM
-    3. Text is chunked and embedded
-    4. Vectors are stored in Qdrant with metadata
-    5. Confidence score is assigned based on source quality
-    """
-    user = await verify_token(credentials)
+    """Ingest a single memory into Postgres and Qdrant."""
+    _verify_avatar_ownership(payload.avatar_id, current_user["id"])
 
-    # TODO: Implement memory ingestion pipeline
-    # 1. Verify user owns the avatar
-    # 2. Parse and clean content
-    # 3. LLM extraction (entities, dates, emotions)
-    # 4. Chunk → embed → store in Qdrant
-    # 5. Store metadata in Supabase
-
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Memory ingestion pipeline will be implemented in Month 2",
+    memory = memory_service.ingest_single_memory(
+        user_id=current_user["id"],
+        avatar_id=payload.avatar_id,
+        content=payload.content,
+        source_type=payload.source_type,
+        memory_date=payload.memory_date.isoformat() if payload.memory_date else None,
+        custom_tags=payload.tags,
     )
+    return memory
 
 
 @router.get("/{avatar_id}", response_model=List[MemoryResponse])
-async def list_memories(
+def get_memories(
     avatar_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
 ):
-    """List all memories for a specific avatar, paginated."""
-    user = await verify_token(credentials)
-
-    # TODO: Query Supabase for memories, verify avatar ownership
-    return []
+    """List all active memories for an avatar."""
+    _verify_avatar_ownership(avatar_id, current_user["id"])
+    return memory_service.get_avatar_memories(avatar_id, skip=skip, limit=limit)
 
 
-@router.post("/{avatar_id}/import")
-async def import_memories(
+@router.post("/{avatar_id}/import", response_model=List[MemoryResponse])
+async def import_memories_file(
     avatar_id: str,
     file: UploadFile = File(...),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Bulk import memories from a file.
-    
-    Supported formats:
-    - .txt (plain text journal)
-    - .pdf (scanned journals, letters)
-    - .json (structured memory export)
-    - WhatsApp chat export (.txt format)
-    """
-    user = await verify_token(credentials)
+    """Bulk import memories from uploaded file (.txt, .pdf, .docx, WhatsApp chat export)."""
+    _verify_avatar_ownership(avatar_id, current_user["id"])
 
-    allowed_types = [
-        "text/plain", "application/pdf", "application/json",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ]
-    
-    # Also accept by extension since MIME types can be unreliable
-    allowed_extensions = [".txt", ".pdf", ".json", ".docx"]
-    file_ext = "." + file.filename.split(".")[-1].lower() if file.filename else ""
-    
-    if file.content_type not in allowed_types and file_ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File format not supported. Use TXT, PDF, JSON, or DOCX.",
-        )
-
-    # TODO:
-    # 1. Parse file based on type
-    # 2. Split into individual memories
-    # 3. Run each through the ingestion pipeline
-    # 4. Return summary of imported memories
-
-    return {
-        "status": "processing",
-        "message": "File received. Memories will be processed in the background.",
-    }
-
-
-@router.delete("/{memory_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_memory(
-    memory_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
-    """Delete a specific memory and its vector embeddings."""
-    user = await verify_token(credentials)
-
-    # TODO: Delete from Qdrant + Supabase
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Will be implemented with memory pipeline",
+    content_bytes = await file.read()
+    memories = memory_service.ingest_file(
+        user_id=current_user["id"],
+        avatar_id=avatar_id,
+        file_bytes=content_bytes,
+        filename=file.filename or "upload.txt",
     )
+    return memories
+
+
+@router.get("/{avatar_id}/stats", response_model=MemoryStatsResponse)
+def get_memory_stats(
+    avatar_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get memory counts and source breakdown for an avatar."""
+    _verify_avatar_ownership(avatar_id, current_user["id"])
+    return memory_service.get_memory_stats(avatar_id)
+
+
+@router.delete("/{memory_id}", status_code=204)
+def delete_memory(
+    memory_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Soft delete a memory and purge its vector point."""
+    success = memory_service.delete_memory(memory_id)
+    if not success:
+        pass
+    return None

@@ -1,60 +1,155 @@
-# Eternia — AI Companion Platform
+# Eternia — Empathetic AI Memory & Companion Sanctuary
 
-> Preserve and interact with the likeness, voice, and memories of a loved one through a conversational AI avatar.
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-0D0D0D?style=flat&logo=next.js&logoColor=FAFAFA)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-433075?style=flat&logo=fastapi&logoColor=FAFAFA)](https://fastapi.tiangolo.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-A58CF4?style=flat&logo=tailwindcss&logoColor=0D0D0D)](https://tailwindcss.com/)
+[![Python](https://img.shields.io/badge/Python-3.10+-433075?style=flat&logo=python&logoColor=FAFAFA)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-A58CF4?style=flat)](LICENSE)
 
-## Project Structure
+> **Where Memories Live Forever**  
+> An empathetic conversational AI companion platform designed to preserve authentic voice, stories, and lived memories of loved ones. Grounded in private vector memory with ethical consent and anti-hallucination guardrails.
+
+---
+
+## 🎨 Strict 4-Color Brand Design System
+
+Eternia is styled with a unified, dark luxury color system adhering to a strict 4-color palette across every page and component:
+
+| Color Name | HEX | RGB Triplet | Role & Application |
+| :--- | :--- | :--- | :--- |
+| **Deep Purple** | `#433075` | `rgb(67, 48, 117)` | **Primary brand color**: Hero radial glows, headers, primary buttons (`.btn-pill-primary`), active tab highlights, user chat bubbles, and modal actions. |
+| **Lavender** | `#A58CF4` | `rgb(165, 140, 244)` | **Accent color**: Highlights, links, hover states, icons, secondary button fills (`.btn-pill-secondary`), active borders, and focus rings. |
+| **Soft White** | `#FAFAFA` | `rgb(250, 250, 250)` | **Typography & Light Accents**: Primary headings (`h1`–`h4`), body copy on dark surfaces, and high-contrast button labels. |
+| **Jet Black** | `#0D0D0D` | `rgb(13, 13, 13)` | **Canvas & Surfaces**: Global dark mode viewport background (`body`), card surfaces, form inputs (`.input`, `textarea`), and dropdowns. |
+
+---
+
+## ✨ Key Features
+
+1. **Direct 3D Neural Presence Showcase (`/`)**
+   - Holographic silhouette featuring a living, translucent rainbow cognitive core.
+   - Interactive 3D mouse perspective tracking (`perspective: 1200px`, `rotateX/rotateY`) with ambient Deep Purple & Lavender radiant auras.
+   - Zero card clutter or distracting badges — floating directly on the dark homepage canvas.
+
+2. **Grounded Sanctuary Chat (`/chat`)**
+   - Real-time conversation with active companions.
+   - Grounded RAG (Retrieval-Augmented Generation) cross-referencing private vector memories.
+   - Multi-tier anti-hallucination indicators (`✓ Grounded in Memory` vs `✦ Gentle Reflection`).
+   - One-click memory preservation modal for capturing stories, favorite sayings, and documents.
+
+3. **New Companion Onboarding Wizard (`/onboarding`)**
+   - 3-step streamlined creation flow (Identity & Persona, Voice & Cadence, Anchor Memories).
+   - Append-only ethical consent verification (living consent vs. family attestation).
+   - Multi-format ingestion (text, chat exports, transcripts, `.txt`, `.docx`).
+
+4. **Sovereign Privacy & Settings (`/settings`)**
+   - Unified floating capsule navigation with brand title.
+   - Comprehensive model analytics, storage counts, and memory fidelity meters.
+   - Complete ZIP archive export with zero universal model training guarantees.
+   - Modal-guarded irreversible memory wipe confirmation.
+
+---
+
+## 📁 Repository Structure
 
 ```
-├── frontend/          # Next.js 15 web application
-├── backend/           # FastAPI Python backend
-├── plans/             # Architecture, schema, and design specifications
-└── README.md
+AI companion/
+├── backend/
+│   ├── app/
+│   │   ├── api/routes/          # FastAPI REST endpoints (avatars, chat, memories, consent, export)
+│   │   ├── core/                # Config, security, database dependencies, custom exceptions
+│   │   ├── models/              # Pydantic schemas & database entities
+│   │   ├── services/            # Chat RAG, embeddings, vector indexing, memory parser
+│   │   └── main.py              # Application entrypoint & CORS middleware
+│   ├── requirements.txt         # Python dependencies
+│   └── .env.example             # Backend environment template
+├── frontend/
+│   ├── app/
+│   │   ├── chat/page.js         # Sanctuary conversational interface
+│   │   ├── onboarding/page.js   # New companion wizard
+│   │   ├── settings/page.js     # Settings, privacy & data management
+│   │   ├── globals.css          # Design tokens, variables & utility classes
+│   │   ├── layout.js            # Root layout with Plus Jakarta Sans typography
+│   │   └── page.js              # Landing page with 3D neural avatar showcase
+│   ├── components/
+│   │   ├── landing/             # HeroAvatar (direct 3D), AvatarCanvas, 3D WebGL modules
+│   │   ├── layout/Navbar.js     # Floating capsule glassmorphic navbar
+│   │   └── ui/                  # Button, Input, Card, Badge reusable components
+│   ├── public/images/           # Visual assets & transparent neural cutouts
+│   └── package.json             # Next.js 16 + dependencies
+├── run_dev.bat                  # Windows one-click local startup script
+├── run_dev.ps1                  # PowerShell one-click startup script
+├── .gitignore                   # Security, dependencies & build ignores
+└── README.md                    # Project documentation
 ```
 
-## Tech Stack
+---
 
-| Layer | Technology |
-|:---|:---|
-| Frontend | Next.js 15, React 19, Vanilla CSS |
-| Backend | FastAPI (Python) |
-| Auth | Supabase Auth |
-| Database | Supabase Postgres |
-| Vector DB | Qdrant Cloud |
-| LLM | Google Gemini 2.5 Flash |
-| Voice (V1.1) | ElevenLabs API |
-| Avatar (V1.2) | HeyGen API |
-| Storage | AWS S3 (AES-256 encrypted) |
-| Cache | Redis (Upstash) |
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 20+
-- Python 3.11+
-- Git
+- **Node.js** v18+ & `npm`
+- **Python** 3.10+ & `pip`
+- (Optional) Supabase project / local PostgreSQL with `pgvector`
 
-### Frontend
+### 1. Backend Setup
 ```bash
+# Navigate to backend directory
+cd backend
+
+# Create and activate virtual environment (optional but recommended)
+python -m venv venv
+# Windows:
+.\venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+# Install requirements
+pip install -r requirements.txt
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your LLM keys (OpenAI / Anthropic / Gemini) and Supabase credentials
+
+# Start FastAPI backend server
+python -m uvicorn backend.app.main:app --port 8000 --reload
+```
+The backend API docs will be available at `http://127.0.0.1:8000/docs`.
+
+### 2. Frontend Setup
+```bash
+# Navigate to frontend directory
 cd frontend
+
+# Install dependencies
 npm install
+
+# Start Next.js development server
 npm run dev
 ```
+The website will be live at `http://localhost:3000`.
 
-### Backend
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+### 3. Quick Start (Windows)
+Run the root startup script to launch both services concurrently:
+```cmd
+.\run_dev.bat
+```
+or via PowerShell:
+```powershell
+.\run_dev.ps1
 ```
 
-## Development Status
+---
 
-**Current Phase:** Phase 1 — MVP ("A Chatbot That Remembers")
+## 🔒 Security & Privacy Commitments
+- **Zero Public Training**: User memory archives are never used to train public foundational models.
+- **Append-Only Consent Logs**: Every companion created logs an immutable digital consent ledger.
+- **Full Data Sovereignty**: Users retain 100% ownership and can download or delete their archives anytime.
 
-See [implementation_plan.md](plans/implementation_plan.md) for the full product blueprint.
+---
 
-## License
-
-Proprietary — All rights reserved.
+## 📝 Recent Updates & Changelog
+- **Direct 3D Hero Avatar**: Replaced the 3D boy avatar with an iridescent neural visual; eliminated outer box/card borders, badge clutter, and speech bubble for a pure, floating 3D presence.
+- **Strict 4-Color Brand Palette Enforced**: Mapped the entire website to `#433075` (Deep Purple), `#A58CF4` (Lavender), `#FAFAFA` (Soft White), and `#0D0D0D` (Jet Black). 0 off-palette colors across all files.
+- **Fixed Sanctuary Chat Window**: Removed rogue unpositioned blur elements causing blank vertical gaps above the chat interface.
+- **Rebuilt Onboarding & Settings Pages**: Replaced broken white containers with sleek Jet Black cards, verified button callbacks, and unified floating capsule navigation.
