@@ -149,6 +149,13 @@ or via PowerShell:
 ---
 
 ## 📝 Recent Updates & Changelog
+- **Continuous Hands-Free Live Voice Conversation Loop**:
+  - Full-duplex conversational voice mode inside the **Live Voice Presence** modal (`<Phone />` / `<Video />`).
+  - Automated hands-free turn-taking: microphone continuously listens while you speak, detects silence (1.3s pause), automatically queries the grounded memory RAG engine, and streams back the companion's response in their assigned ElevenLabs voice.
+  - Automatic microphone re-activation: as soon as the companion finishes speaking, the microphone re-opens hands-free for the next sentence.
+  - Live real-time subtitle & hearing capsule displaying both user transcript and companion speech live.
+  - Active barge-in interruption support: click "Tap to Speak" or mute anytime to interrupt playback.
+  - Inline quick-type message input allows typing thoughts during voice calls in quiet environments.
 - **ElevenLabs AI Voice Integration with Relationship-Adaptive Voice Mapping**:
   - Direct integration with ElevenLabs Text-to-Speech API (`eleven_multilingual_v2`) delivering high-fidelity emotional audio in English and Indian languages.
   - Automatic relationship-to-voice assignment tailored to family and loved one personas:

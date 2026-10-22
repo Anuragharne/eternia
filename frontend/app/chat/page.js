@@ -52,6 +52,17 @@ function ChatContent() {
   const [callDuration, setCallDuration] = useState(0);
   const activeAudioRef = useRef(null);
 
+  // Live Voice/Video Call Session State (Continuous hands-free conversation)
+  const [callStatus, setCallStatus] = useState("listening"); // "listening" | "thinking" | "speaking" | "muted"
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [liveSubtitle, setLiveSubtitle] = useState("");
+  const [callTextInput, setCallTextInput] = useState("");
+  const callRecognitionRef = useRef(null);
+  const callAudioRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const isCallActiveRef = useRef(false);
+  const callStatusRef = useRef("listening");
+
   // Modal for adding a memory
   const [showMemoryModal, setShowMemoryModal] = useState(false);
   const [newMemoryText, setNewMemoryText] = useState("");
@@ -72,20 +83,282 @@ function ChatContent() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  // Live call timer
   useEffect(() => {
-    if (showLiveCallModal) {
+    callStatusRef.current = callStatus;
+  }, [callStatus]);
+
+  // Clean up live call audio & recognition
+  const cleanupLiveCall = () => {
+    isCallActiveRef.current = false;
+    if (callTimerRef.current) clearInterval(callTimerRef.current);
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    if (callRecognitionRef.current) {
+      try { callRecognitionRef.current.abort(); } catch {}
+      callRecognitionRef.current = null;
+    }
+    if (callAudioRef.current) {
+      callAudioRef.current.pause();
+      callAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setLiveTranscript("");
+  };
+
+  // Start continuous listening in call
+  const startCallListening = () => {
+    if (typeof window === "undefined" || !isCallActiveRef.current) return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    if (callStatusRef.current === "speaking" || callStatusRef.current === "thinking") return;
+
+    try {
+      if (callRecognitionRef.current) {
+        try { callRecognitionRef.current.abort(); } catch {}
+      }
+
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = "en-US";
+
+      rec.onstart = () => {
+        if (isCallActiveRef.current && callStatusRef.current !== "speaking" && callStatusRef.current !== "thinking") {
+          setCallStatus("listening");
+        }
+      };
+
+      rec.onresult = (event) => {
+        if (!isCallActiveRef.current || callStatusRef.current === "speaking" || callStatusRef.current === "thinking") return;
+
+        let interim = "";
+        let final = "";
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        const currentText = (final || interim).trim();
+        if (currentText) {
+          setLiveTranscript(currentText);
+
+          // Reset silence timer
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+          // When user pauses speaking for 1300ms, automatically trigger companion turn!
+          silenceTimerRef.current = setTimeout(() => {
+            if (isCallActiveRef.current && currentText.trim()) {
+              handleLiveCallTurn(currentText.trim());
+            }
+          }, 1300);
+        }
+      };
+
+      rec.onerror = (e) => {
+        console.warn("Call speech recognition notice:", e.error);
+        if (e.error === "not-allowed") {
+          setLiveTranscript("Microphone access is paused or denied. Please check browser permissions.");
+        }
+      };
+
+      rec.onend = () => {
+        // Auto-restart if call is still active and companion is not speaking/thinking
+        if (isCallActiveRef.current && callStatusRef.current === "listening" && !isMuted) {
+          try {
+            rec.start();
+          } catch {}
+        }
+      };
+
+      callRecognitionRef.current = rec;
+      rec.start();
+    } catch (err) {
+      console.warn("Continuous speech recognition error:", err);
+    }
+  };
+
+  // Process user turn in live call
+  const handleLiveCallTurn = async (userText) => {
+    if (!userText || !activeAvatar || !isCallActiveRef.current) return;
+    if (callStatusRef.current === "thinking" || callStatusRef.current === "speaking") return;
+
+    // Set status to thinking and stop mic to prevent acoustic feedback
+    setCallStatus("thinking");
+    setLiveTranscript(userText);
+    if (callRecognitionRef.current) {
+      try { callRecognitionRef.current.abort(); } catch {}
+    }
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+    const userMessage = {
+      id: Date.now(),
+      role: "user",
+      content: userText,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+
+    try {
+      const response = await api.sendMessage(activeAvatar.id, userText);
+      if (!isCallActiveRef.current) return;
+
+      const assistantMessage = {
+        id: Date.now() + 1,
+        role: "assistant",
+        content: response.message,
+        timestamp: new Date(),
+        grounded: response.is_grounded,
+        memoriesUsed: response.memories_used,
+        citedIds: response.memory_ids_cited,
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      setCallStatus("speaking");
+      setLiveSubtitle(response.message);
+      await playCompanionVoiceInCall(response.message);
+    } catch (err) {
+      console.error("Live call response error:", err);
+      if (!isCallActiveRef.current) return;
+
+      const fallbackText = "I hear you and am reflecting with you. Tell me a little more.";
+      setCallStatus("speaking");
+      setLiveSubtitle(fallbackText);
+      await playCompanionVoiceInCall(fallbackText);
+    }
+  };
+
+  // Play companion speech in call
+  const playCompanionVoiceInCall = async (text) => {
+    if (!isCallActiveRef.current) return;
+
+    try {
+      const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, text);
+      if (!isCallActiveRef.current) return;
+
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      callAudioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        callAudioRef.current = null;
+        onCompanionFinishedSpeaking();
+      };
+
+      audio.onerror = (e) => {
+        console.warn("ElevenLabs audio play error in call, falling back to speech synthesis:", e);
+        fallbackSpeechInCall(text);
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.warn("ElevenLabs call synthesis error, falling back to speech synthesis:", err);
+      fallbackSpeechInCall(text);
+    }
+  };
+
+  const fallbackSpeechInCall = (text) => {
+    if (!isCallActiveRef.current) return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      onCompanionFinishedSpeaking();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.05;
+
+    utterance.onend = () => {
+      onCompanionFinishedSpeaking();
+    };
+
+    utterance.onerror = () => {
+      onCompanionFinishedSpeaking();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const onCompanionFinishedSpeaking = () => {
+    if (!isCallActiveRef.current) return;
+    setCallStatus("listening");
+    setLiveTranscript("");
+    if (!isMuted) {
+      startCallListening();
+    }
+  };
+
+  const handleToggleMute = () => {
+    if (!isMuted) {
+      setIsMuted(true);
+      setCallStatus("muted");
+      if (callRecognitionRef.current) {
+        try { callRecognitionRef.current.abort(); } catch {}
+      }
+      if (callAudioRef.current) {
+        callAudioRef.current.pause();
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    } else {
+      setIsMuted(false);
+      setCallStatus("listening");
+      startCallListening();
+    }
+  };
+
+  const handleInterruptCompanion = () => {
+    if (callAudioRef.current) {
+      callAudioRef.current.pause();
+      callAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    onCompanionFinishedSpeaking();
+  };
+
+  const handleSendCallText = (e) => {
+    e.preventDefault();
+    if (!callTextInput.trim()) return;
+    const text = callTextInput.trim();
+    setCallTextInput("");
+    handleLiveCallTurn(text);
+  };
+
+  // Start live call session on modal open
+  useEffect(() => {
+    if (showLiveCallModal && activeAvatar) {
+      isCallActiveRef.current = true;
       setCallDuration(0);
+      setLiveTranscript("");
+      setCallStatus("speaking");
+      const greeting = `Hello! It is so wonderful to speak with you today. What is on your mind?`;
+      setLiveSubtitle(greeting);
+
+      // Speak welcoming greeting, then open mic
+      playCompanionVoiceInCall(greeting);
+
       callTimerRef.current = setInterval(() => {
         setCallDuration((prev) => prev + 1);
       }, 1000);
     } else {
-      if (callTimerRef.current) clearInterval(callTimerRef.current);
+      cleanupLiveCall();
     }
+
     return () => {
-      if (callTimerRef.current) clearInterval(callTimerRef.current);
+      cleanupLiveCall();
     };
-  }, [showLiveCallModal]);
+  }, [showLiveCallModal, activeAvatar?.id]);
+
 
   // Load avatars on mount
   useEffect(() => {
@@ -722,51 +995,162 @@ function ChatContent() {
                 className="w-full max-w-[220px] h-auto object-contain filter contrast-[1.05] drop-shadow-[0_15px_30px_rgba(67,48,117,0.5)] transition-transform duration-500 hover:scale-105"
               />
 
-              {/* Animated Soundwave Bars */}
-              <div className="absolute bottom-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0D0D0D]/80 backdrop-blur-md border border-[#A58CF4]/25">
-                <Radio size={13} className="text-[#A58CF4] animate-pulse" />
-                <div className="flex items-center gap-1 h-3">
-                  <span className="w-1 bg-[#A58CF4] h-2 animate-bounce rounded-full" />
-                  <span className="w-1 bg-[#A58CF4] h-3 animate-bounce [animation-delay:0.15s] rounded-full" />
-                  <span className="w-1 bg-[#A58CF4] h-1.5 animate-bounce [animation-delay:0.3s] rounded-full" />
-                  <span className="w-1 bg-[#A58CF4] h-3.5 animate-bounce [animation-delay:0.45s] rounded-full" />
+              {/* Dynamic Soundwave & Presence State */}
+              <div className="absolute bottom-4 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D0D0D]/85 backdrop-blur-md border border-[#A58CF4]/30 shadow-lg">
+                <Radio
+                  size={13}
+                  className={
+                    callStatus === "speaking"
+                      ? "text-[#A58CF4] animate-pulse"
+                      : callStatus === "thinking"
+                      ? "text-[#433075] animate-spin"
+                      : "text-[#A58CF4]"
+                  }
+                />
+                <div className="flex items-center gap-1 h-3.5">
+                  <span
+                    className={`w-1 rounded-full transition-all ${
+                      callStatus === "speaking"
+                        ? "bg-[#A58CF4] h-4 animate-bounce"
+                        : callStatus === "thinking"
+                        ? "bg-[#433075] h-2 animate-pulse"
+                        : "bg-[#A58CF4] h-2"
+                    }`}
+                  />
+                  <span
+                    className={`w-1 rounded-full transition-all ${
+                      callStatus === "speaking"
+                        ? "bg-[#A58CF4] h-5 animate-bounce [animation-delay:0.15s]"
+                        : callStatus === "thinking"
+                        ? "bg-[#433075] h-3 animate-pulse [animation-delay:0.15s]"
+                        : "bg-[#A58CF4] h-3.5"
+                    }`}
+                  />
+                  <span
+                    className={`w-1 rounded-full transition-all ${
+                      callStatus === "speaking"
+                        ? "bg-[#A58CF4] h-2.5 animate-bounce [animation-delay:0.3s]"
+                        : callStatus === "thinking"
+                        ? "bg-[#433075] h-1.5 animate-pulse [animation-delay:0.3s]"
+                        : "bg-[#A58CF4] h-1.5"
+                    }`}
+                  />
+                  <span
+                    className={`w-1 rounded-full transition-all ${
+                      callStatus === "speaking"
+                        ? "bg-[#A58CF4] h-5 animate-bounce [animation-delay:0.45s]"
+                        : callStatus === "thinking"
+                        ? "bg-[#433075] h-3 animate-pulse [animation-delay:0.45s]"
+                        : "bg-[#A58CF4] h-3"
+                    }`}
+                  />
                 </div>
-                <span className="text-[10.5px] text-[#FAFAFA] font-medium ml-1">
-                  {activeAvatar ? activeAvatar.name : "Companion"} Listening {voiceInfo ? `· Voice: ${voiceInfo.voice_name} (ElevenLabs)` : ""}
+                <span className="text-[11px] text-[#FAFAFA] font-medium ml-1">
+                  {callStatus === "speaking"
+                    ? `${activeAvatar?.name || "Companion"} Speaking (${voiceInfo?.voice_name || "Voice"})`
+                    : callStatus === "thinking"
+                    ? "Reflecting on memories..."
+                    : isMuted
+                    ? "Microphone Muted"
+                    : liveTranscript
+                    ? "Hearing you speak..."
+                    : `${activeAvatar?.name || "Companion"} Listening`}
                 </span>
               </div>
             </div>
 
-            {/* Active Companion Name & Dialogue */}
+            {/* Companion Name */}
             <h3 className="text-[20px] font-medium text-[#FAFAFA] mb-1">
               {activeAvatar?.name}
             </h3>
-            <p className="text-[12px] text-[rgba(250,250,250,0.7)] max-w-[420px] mb-6">
-              Continuous live reflection session powered by ElevenLabs voice synthesis. Speak naturally into your microphone or reflect together.
-            </p>
+
+            {/* Live Subtitle & Transcript Capsule */}
+            <div className="w-full max-w-[500px] min-h-[64px] p-3.5 rounded-2xl bg-[#433075]/15 border border-[#A58CF4]/30 shadow-inner flex flex-col justify-center items-center text-center mb-4 transition-all">
+              {callStatus === "thinking" ? (
+                <div className="flex items-center gap-2 text-[12.5px] text-[#A58CF4] font-medium">
+                  <Loader2 size={14} className="animate-spin text-[#A58CF4]" />
+                  <span>Reflecting on memories with {activeAvatar?.name}...</span>
+                </div>
+              ) : callStatus === "speaking" ? (
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-wider text-[#A58CF4] font-medium flex items-center justify-center gap-1">
+                    <Volume2 size={11} /> {activeAvatar?.name} Speaking ({voiceInfo?.voice_name || "Voice"})
+                  </span>
+                  <p className="text-[12.5px] text-[#FAFAFA] font-medium leading-relaxed italic">
+                    "{liveSubtitle}"
+                  </p>
+                </div>
+              ) : liveTranscript ? (
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-wider text-[#A58CF4] font-medium">
+                    Hearing you:
+                  </span>
+                  <p className="text-[12.5px] text-[#FAFAFA] font-medium leading-relaxed">
+                    "{liveTranscript}"
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-[12px] text-[rgba(250,250,250,0.65)]">
+                  <Mic size={13} className="text-[#A58CF4] animate-pulse" />
+                  <span>Speak naturally into your microphone... Companion is listening</span>
+                </div>
+              )}
+            </div>
 
             {/* Call Action Controls */}
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => setIsMuted(!isMuted)}
-                className={`p-3 rounded-full border transition-all cursor-pointer ${
-                  isMuted
-                    ? "bg-[#433075] text-[#FAFAFA] border-[#A58CF4]"
-                    : "bg-[#0D0D0D] text-[#A58CF4] border-[#A58CF4]/30 hover:border-[#A58CF4]"
-                }`}
-                title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
-              >
-                {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
-              </button>
+            <div className="flex flex-col items-center gap-3 w-full max-w-[480px]">
+              {/* Inline Quick Text Message input */}
+              <form onSubmit={handleSendCallText} className="w-full flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Or type a thought to say aloud..."
+                  value={callTextInput}
+                  onChange={(e) => setCallTextInput(e.target.value)}
+                  className="flex-1 px-4 py-2 text-[12px] bg-[#0D0D0D] border border-[#A58CF4]/25 rounded-full text-[#FAFAFA] focus:outline-none focus:border-[#A58CF4]"
+                />
+                <button
+                  type="submit"
+                  disabled={!callTextInput.trim() || callStatus === "thinking"}
+                  className="btn-pill-primary text-[11px] px-3.5 py-2 disabled:opacity-40 cursor-pointer"
+                  title="Send message in call"
+                >
+                  <Send size={12} />
+                </button>
+              </form>
 
-              <button
-                type="button"
-                onClick={() => setShowLiveCallModal(false)}
-                className="px-6 py-3 rounded-full bg-[#433075] hover:bg-[#A58CF4] hover:text-[#0D0D0D] text-[#FAFAFA] border border-[#A58CF4]/40 font-medium text-[13px] flex items-center gap-2 transition-all cursor-pointer shadow-lg"
-              >
-                <PhoneOff size={16} /> End Session
-              </button>
+              <div className="flex items-center gap-3 mt-1">
+                <button
+                  type="button"
+                  onClick={handleToggleMute}
+                  className={`p-3 rounded-full border transition-all cursor-pointer ${
+                    isMuted
+                      ? "bg-[#433075] text-[#FAFAFA] border-[#A58CF4]"
+                      : "bg-[#0D0D0D] text-[#A58CF4] border-[#A58CF4]/30 hover:border-[#A58CF4]"
+                  }`}
+                  title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
+                >
+                  {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
+                </button>
+
+                {callStatus === "speaking" && (
+                  <button
+                    type="button"
+                    onClick={handleInterruptCompanion}
+                    className="px-4 py-2.5 rounded-full bg-[#433075]/40 hover:bg-[#433075] border border-[#A58CF4]/40 text-[#FAFAFA] text-[12px] font-medium flex items-center gap-1.5 transition-all cursor-pointer"
+                    title="Interrupt companion to speak now"
+                  >
+                    <Mic size={13} className="text-[#A58CF4]" /> Tap to Speak
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowLiveCallModal(false)}
+                  className="px-6 py-2.5 rounded-full bg-[#433075] hover:bg-[#A58CF4] hover:text-[#0D0D0D] text-[#FAFAFA] border border-[#A58CF4]/40 font-medium text-[12.5px] flex items-center gap-2 transition-all cursor-pointer shadow-lg"
+                >
+                  <PhoneOff size={15} /> End Session
+                </button>
+              </div>
             </div>
 
           </div>
