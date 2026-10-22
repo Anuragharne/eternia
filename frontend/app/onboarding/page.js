@@ -400,7 +400,7 @@ export default function OnboardingPage() {
               </label>
 
               <div className="p-3.5 rounded-xl bg-[#433075]/20 border border-[#A58CF4]/20 text-[12px] text-[rgba(250,250,250,0.75)] text-center">
-                Don&apos;t have an audio recording? That&apos;s completely okay. We will use a gentle, comforting natural tone.
+                ✨ Don&apos;t have an audio recording? That&apos;s completely okay. Eternia automatically pairs an expressive ElevenLabs voice tailored to their relationship ({formData.relationship || "Daughter, Son, Girlfriend, Grandparent, Friend"}).
               </div>
             </div>
           )}

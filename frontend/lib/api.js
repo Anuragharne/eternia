@@ -133,6 +133,28 @@ export const api = {
     }),
   revokeConsent: (avatarId) => apiCall(`/consent/${avatarId}/revoke`, { method: "POST" }),
 
+  // ElevenLabs Voice Synthesis
+  getVoiceCatalog: () => apiCall("/voice/catalog"),
+  getVoiceInfo: (avatarId) => apiCall(`/voice/${avatarId}/info`),
+  getSpeechAudioBlob: async (avatarId, text) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || "demo-token";
+    const url = `${API_BASE_URL}/voice/${avatarId}/speak`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Speech synthesis failed with status ${response.status}`);
+    }
+    return await response.blob();
+  },
+
   // Data Export & Account Management
   exportDataUrl: (format = "zip") => `${API_BASE_URL}/export/user-data?format=${format}`,
   downloadExport: async (format = "zip") => {

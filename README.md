@@ -149,6 +149,21 @@ or via PowerShell:
 ---
 
 ## 📝 Recent Updates & Changelog
+- **ElevenLabs AI Voice Integration with Relationship-Adaptive Voice Mapping**:
+  - Direct integration with ElevenLabs Text-to-Speech API (`eleven_multilingual_v2`) delivering high-fidelity emotional audio in English and Indian languages.
+  - Automatic relationship-to-voice assignment tailored to family and loved one personas:
+    - **Daughter / Sister (`beti`, `niece`)**: `Jessica` (`cgSgspJ2msm6clMCkdW9`) — young, sweet, and expressive.
+    - **Son / Brother (`beta`, `nephew`)**: `Liam` (`TX3LPaxmHKxFdv7VOQHJ`) — young, confident, and warm.
+    - **Girlfriend / Wife / Partner**: `Sarah` (`EXAVITQu4vr4xnSDxMaL`) — gentle, intimate, and affectionate.
+    - **Boyfriend / Husband**: `Will` (`bIHbv24MWmeRgasZH58o`) — relaxed, chill, and conversational.
+    - **Grandmother (`dadi`, `nani`, `grandma`)**: `Matilda` (`XrExE9yKIg1WjnnlVkGX`) — elderly, maternal, warm, and patient.
+    - **Grandfather (`dadu`, `dada`, `nana`, `grandpa`)**: `Bill` (`pqHfZKP75CvOlQylNhV4`) — elderly, deep, wise, and comforting.
+    - **Mother (`maa`, `mom`, `mummy`, `ammi`)**: `Lily` (`pFZP5JQG7iQjIQuC4Bku`) — middle-aged maternal warmth and clarity.
+    - **Father (`papa`, `dad`, `pitaji`, `abba`)**: `George` (`JBFqnCBsd6RMkjVDRZzb`) — mature, comforting storyteller.
+    - **Friend / Default Companion**: `River` (`SAz9YHcvj6GT2YYXdXww`) — friendly and conversational.
+  - Smart in-memory LRU audio caching (200 clips) to prevent repeated ElevenLabs character credit consumption on replayed messages.
+  - Seamless automatic fallback to browser Web Speech API (`SpeechSynthesis`) if ElevenLabs credits are exhausted or offline.
+  - Live voice presence indicator in Sanctuary Chat displaying assigned voice persona and real-time generation state.
 - **Uncapped Testing Phase (Unlimited Chat, Voice & Video)**:
   - Lifted all tier quotas, memory limits, and slot restrictions across backend and frontend.
   - Added live **Speech-to-Text Microphone Input** (`<Mic />`) directly in the Sanctuary chat input pill.
@@ -168,3 +183,4 @@ or via PowerShell:
   - Implemented bulk upserts in Qdrant (`upsert_batch`) and bulk insertions in Supabase Postgres, reducing upload time for large 400KB+ chat exports from over an hour down to under 10 seconds.
 - **Fixed Sanctuary Chat Window**: Removed rogue unpositioned blur elements causing blank vertical gaps above the chat interface.
 - **Rebuilt Onboarding & Settings Pages**: Replaced broken white containers with sleek Jet Black cards, verified button callbacks, and unified floating capsule navigation.
+

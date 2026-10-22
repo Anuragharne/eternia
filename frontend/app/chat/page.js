@@ -23,6 +23,7 @@ import {
   VolumeX,
   Radio,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -43,10 +44,13 @@ function ChatContent() {
   // Voice & Video states (Unrestricted testing phase)
   const [isRecording, setIsRecording] = useState(false);
   const [playingMessageId, setPlayingMessageId] = useState(null);
+  const [isVoiceLoading, setIsVoiceLoading] = useState(null);
+  const [voiceInfo, setVoiceInfo] = useState(null);
   const [showLiveCallModal, setShowLiveCallModal] = useState(false);
   const [callMode, setCallMode] = useState("video"); // "video" | "voice"
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const activeAudioRef = useRef(null);
 
   // Modal for adding a memory
   const [showMemoryModal, setShowMemoryModal] = useState(false);
@@ -142,6 +146,41 @@ function ChatContent() {
     loadHistory();
   }, [activeAvatar]);
 
+  // Load voice info and cancel previous audio when active avatar changes
+  useEffect(() => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setPlayingMessageId(null);
+    setIsVoiceLoading(null);
+
+    if (!activeAvatar?.id) {
+      setVoiceInfo(null);
+      return;
+    }
+
+    api.getVoiceInfo(activeAvatar.id)
+      .then((info) => setVoiceInfo(info))
+      .catch((err) => console.log("Voice info note:", err.message));
+  }, [activeAvatar?.id]);
+
+  // Audio cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim() || !activeAvatar) return;
 
@@ -235,12 +274,10 @@ function ChatContent() {
     }
   };
 
-  // Text-to-Speech Audio Playback
-  const handleSpeakMessage = (msgId, text) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-
-    if (playingMessageId === msgId) {
-      window.speechSynthesis.cancel();
+  // Fallback to browser Web Speech API
+  const fallbackToBrowserTTS = (msgId, text) => {
+    setIsVoiceLoading(null);
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       setPlayingMessageId(null);
       return;
     }
@@ -260,6 +297,66 @@ function ChatContent() {
 
     setPlayingMessageId(msgId);
     window.speechSynthesis.speak(utterance);
+  };
+
+  // Text-to-Speech Audio Playback (ElevenLabs high-fidelity relationship voice)
+  const handleSpeakMessage = async (msgId, text) => {
+    // If clicking on currently playing message, toggle stop
+    if (playingMessageId === msgId) {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      setPlayingMessageId(null);
+      setIsVoiceLoading(null);
+      return;
+    }
+
+    // Stop any existing playback
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    setPlayingMessageId(msgId);
+    setIsVoiceLoading(msgId);
+
+    // Primary: ElevenLabs Audio
+    if (activeAvatar?.id) {
+      try {
+        const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, text);
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        activeAudioRef.current = audio;
+
+        audio.onended = () => {
+          setPlayingMessageId(null);
+          setIsVoiceLoading(null);
+          URL.revokeObjectURL(audioUrl);
+          activeAudioRef.current = null;
+        };
+
+        audio.onerror = (e) => {
+          console.warn("ElevenLabs audio play error, falling back to browser speech synthesis:", e);
+          fallbackToBrowserTTS(msgId, text);
+        };
+
+        await audio.play();
+        setIsVoiceLoading(null);
+        return;
+      } catch (err) {
+        console.warn("ElevenLabs TTS request failed, falling back to browser speech synthesis:", err);
+      }
+    }
+
+    // Fallback: Browser Web Speech API
+    fallbackToBrowserTTS(msgId, text);
   };
 
   const handleAddMemory = async (e) => {
@@ -410,9 +507,17 @@ function ChatContent() {
                       <h3 className="text-[14px] font-medium text-[#FAFAFA]">
                         {activeAvatar.name}
                       </h3>
-                      <p className="text-[11px] text-[rgba(250,250,250,0.65)] flex items-center gap-1">
+                      <p className="text-[11px] text-[rgba(250,250,250,0.65)] flex items-center gap-1.5 flex-wrap">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#A58CF4] inline-block"></span>
-                        {activeAvatar.relationship} · {activeAvatar.memory_count || 0} preserved stories
+                        <span>{activeAvatar.relationship} · {activeAvatar.memory_count || 0} stories</span>
+                        {voiceInfo && (
+                          <>
+                            <span className="text-[rgba(250,250,250,0.3)]">·</span>
+                            <span className="text-[#A58CF4] flex items-center gap-1 font-medium">
+                              <Volume2 size={11} /> {voiceInfo.voice_name} Voice
+                            </span>
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -481,10 +586,16 @@ function ChatContent() {
                           <button
                             type="button"
                             onClick={() => handleSpeakMessage(m.id, m.content)}
-                            className="text-[10.5px] text-[rgba(250,250,250,0.65)] hover:text-[#A58CF4] flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded-md hover:bg-[#433075]/30 cursor-pointer"
-                            title="Hear companion voice (Text-to-speech)"
+                            disabled={isVoiceLoading && isVoiceLoading !== m.id}
+                            className="text-[10.5px] text-[rgba(250,250,250,0.65)] hover:text-[#A58CF4] flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded-md hover:bg-[#433075]/30 cursor-pointer disabled:opacity-50"
+                            title={`Hear companion voice (${voiceInfo ? voiceInfo.voice_name : "ElevenLabs"})`}
                           >
-                            {playingMessageId === m.id ? (
+                            {isVoiceLoading === m.id ? (
+                              <>
+                                <Loader2 size={12} className="text-[#A58CF4] animate-spin" />
+                                <span className="text-[#A58CF4]">Speaking...</span>
+                              </>
+                            ) : playingMessageId === m.id ? (
                               <>
                                 <VolumeX size={12} className="text-[#A58CF4] animate-pulse" />
                                 <span className="text-[#A58CF4]">Pause</span>
@@ -492,7 +603,7 @@ function ChatContent() {
                             ) : (
                               <>
                                 <Volume2 size={12} className="text-[#A58CF4]" />
-                                <span>Hear Voice</span>
+                                <span>Hear Voice {voiceInfo ? `(${voiceInfo.voice_name})` : ""}</span>
                               </>
                             )}
                           </button>
@@ -621,7 +732,7 @@ function ChatContent() {
                   <span className="w-1 bg-[#A58CF4] h-3.5 animate-bounce [animation-delay:0.45s] rounded-full" />
                 </div>
                 <span className="text-[10.5px] text-[#FAFAFA] font-medium ml-1">
-                  {activeAvatar ? activeAvatar.name : "Companion"} Listening
+                  {activeAvatar ? activeAvatar.name : "Companion"} Listening {voiceInfo ? `· Voice: ${voiceInfo.voice_name} (ElevenLabs)` : ""}
                 </span>
               </div>
             </div>
@@ -631,7 +742,7 @@ function ChatContent() {
               {activeAvatar?.name}
             </h3>
             <p className="text-[12px] text-[rgba(250,250,250,0.7)] max-w-[420px] mb-6">
-              Continuous live reflection session. Speak naturally into your microphone or reflect together.
+              Continuous live reflection session powered by ElevenLabs voice synthesis. Speak naturally into your microphone or reflect together.
             </p>
 
             {/* Call Action Controls */}

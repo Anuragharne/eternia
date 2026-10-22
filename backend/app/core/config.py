@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # Redis (Upstash)
     REDIS_URL: str
 
+    # ElevenLabs Voice AI
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_MODEL: str = "eleven_multilingual_v2"
+
     # CORS
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
