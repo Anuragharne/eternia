@@ -157,5 +157,10 @@ or via PowerShell:
   - Set default companion consent and voice status to active immediately upon creation.
 - **Direct 3D Hero Avatar**: Replaced the 3D boy avatar with an iridescent neural visual; eliminated outer box/card borders, badge clutter, and speech bubble for a pure, floating 3D presence.
 - **Strict 4-Color Brand Palette Enforced**: Mapped the entire website to `#433075` (Deep Purple), `#A58CF4` (Lavender), `#FAFAFA` (Soft White), and `#0D0D0D` (Jet Black). 0 off-palette colors across all files.
+- **Robust Memory Import & Document Parser**:
+  - Fixed WhatsApp chat export regex parsing by compiling with `re.MULTILINE` and supporting iOS/Android bracket & 12h/24h timestamp formats.
+  - Added automatic safe chunking (`MAX_MEMORY_CONTENT_LENGTH = 8000`) across all plain text, PDF, and DOCX parsers to strictly conform to Supabase Postgres `CHECK (char_length(content) BETWEEN 1 AND 10000)`.
+  - Added fast heuristic metadata extraction for bulk memory imports (> 3 items) to prevent external LLM rate limit bottlenecks and eliminate 429 quota exhaustion.
+  - Added global ASGI exception handler in FastAPI to ensure all errors return standardized JSON responses with full CORS headers.
 - **Fixed Sanctuary Chat Window**: Removed rogue unpositioned blur elements causing blank vertical gaps above the chat interface.
 - **Rebuilt Onboarding & Settings Pages**: Replaced broken white containers with sleek Jet Black cards, verified button callbacks, and unified floating capsule navigation.

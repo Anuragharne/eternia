@@ -22,6 +22,7 @@ import {
   Volume2,
   VolumeX,
   Radio,
+  AlertCircle,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -53,6 +54,7 @@ function ChatContent() {
   const [uploadFile, setUploadFile] = useState(null);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [memorySuccessMsg, setMemorySuccessMsg] = useState("");
+  const [memoryErrorMsg, setMemoryErrorMsg] = useState("");
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -265,6 +267,7 @@ function ChatContent() {
     if (!activeAvatar) return;
     setIsSavingMemory(true);
     setMemorySuccessMsg("");
+    setMemoryErrorMsg("");
 
     try {
       if (newMemoryText.trim()) {
@@ -287,10 +290,11 @@ function ChatContent() {
       setTimeout(() => {
         setShowMemoryModal(false);
         setMemorySuccessMsg("");
+        setMemoryErrorMsg("");
       }, 1400);
     } catch (err) {
       console.error("Error adding memory:", err);
-      alert(err.message || "Failed to add memory.");
+      setMemoryErrorMsg(err.message || "Failed to preserve memory. Please try again.");
     } finally {
       setIsSavingMemory(false);
     }
@@ -681,6 +685,13 @@ function ChatContent() {
               <div className="mb-4 p-3 rounded-xl bg-[#433075]/40 border border-[#A58CF4] text-[#FAFAFA] text-[12px] flex items-center gap-2">
                 <CheckCircle2 size={16} className="text-[#A58CF4]" />
                 <span>{memorySuccessMsg}</span>
+              </div>
+            )}
+
+            {memoryErrorMsg && (
+              <div className="mb-4 p-3 rounded-xl bg-[#433075]/20 border border-red-500/60 text-[#FAFAFA] text-[12px] flex items-center gap-2">
+                <AlertCircle size={16} className="text-red-400 shrink-0" />
+                <span>{memoryErrorMsg}</span>
               </div>
             )}
 

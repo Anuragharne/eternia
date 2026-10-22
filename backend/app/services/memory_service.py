@@ -44,17 +44,37 @@ class MemoryService:
         source_type: str = "manual",
         memory_date: Optional[str] = None,
         custom_tags: Optional[List[str]] = None,
-    ) -> MemoryResponse:
+        fast_meta: bool = False,
+    ) -> Optional[MemoryResponse]:
         """Process and store a single memory entry."""
+        content = (content or "").strip()
+        if not content:
+            return None
+
+        # Supabase Postgres memories table has strict: CHECK (char_length(content) BETWEEN 1 AND 10000)
+        if len(content) > 9900:
+            content = content[:9900]
+
         self._check_memory_limit(avatar_id, count_to_add=1)
 
         confidence = SOURCE_CONFIDENCE_SCORES.get(source_type, 0.90)
 
-        # 1. LLM Entity & Metadata Extraction
-        llm_meta = llm_service.extract_metadata(content)
-        entities = llm_meta.get("entities", [])
-        extracted_tags = llm_meta.get("tags", [])
-        all_tags = list(set((custom_tags or []) + extracted_tags))
+        # 1. Metadata Extraction (LLM or fast heuristic for bulk)
+        if fast_meta:
+            entities = custom_tags or []
+            all_tags = list(set((custom_tags or []) + [source_type, "memory"]))
+            llm_meta = {
+                "entities": entities,
+                "dates": [memory_date] if memory_date else [],
+                "emotional_tone": "warm",
+                "summary": content[:120],
+                "tags": all_tags,
+            }
+        else:
+            llm_meta = llm_service.extract_metadata(content)
+            entities = llm_meta.get("entities", [])
+            extracted_tags = llm_meta.get("tags", [])
+            all_tags = list(set((custom_tags or []) + extracted_tags))
 
         # 2. Chunking (if long)
         chunks = embedding_service.chunk_text(content, target_tokens=200, overlap=50)
@@ -134,6 +154,9 @@ class MemoryService:
 
         self._check_memory_limit(avatar_id, count_to_add=len(parsed_entries))
 
+        # If more than 3 entries, use fast heuristic extraction to prevent quota exhaustion and long latency
+        is_bulk = len(parsed_entries) > 3
+
         ingested_memories = []
         for entry in parsed_entries:
             content = entry.get("content", "").strip()
@@ -143,14 +166,21 @@ class MemoryService:
             src_type = entry.get("source_type", "journal")
             raw_date = entry.get("raw_date")
 
+            custom_tags = []
+            if entry.get("sender"):
+                custom_tags.append(entry["sender"])
+
             mem = self.ingest_single_memory(
                 user_id=user_id,
                 avatar_id=avatar_id,
                 content=content,
                 source_type=src_type,
                 memory_date=raw_date,
+                custom_tags=custom_tags,
+                fast_meta=is_bulk,
             )
-            ingested_memories.append(mem)
+            if mem:
+                ingested_memories.append(mem)
 
         return ingested_memories
 

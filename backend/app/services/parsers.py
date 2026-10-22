@@ -2,24 +2,31 @@
 
 import io
 import re
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 import pypdf
 import docx
 
 # Regex patterns for WhatsApp chat export formats
 WHATSAPP_PATTERNS = [
-    # 12/31/20, 11:59 PM - Name: Message
+    # 12/31/20, 11:59 PM - Name: Message OR 31/12/2020, 11:59 pm - Name: Message
     re.compile(
-        r"^(\d{1,2}/\d{1,2}/\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M|[ap]m)?)\s*-\s*([^:]+):\s*(.*)$"
+        r"^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M|[ap]m)?)\s*[-—]\s*([^:]+):\s*(.*)$",
+        re.MULTILINE,
     ),
-    # [31/12/20, 23:59:00] Name: Message
+    # [31/12/20, 23:59:00] Name: Message OR [8/7/26, 3:52:34 PM] Name: Message
     re.compile(
-        r"^\[(\d{1,2}/\d{1,2}/\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M|[ap]m)?)\]\s*([^:]+):\s*(.*)$"
+        r"^\[(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M|[ap]m)?)\]\s*([^:]+):\s*(.*)$",
+        re.MULTILINE,
     ),
-    # 31/12/2020, 23:59 - Name: Message (European/Indian format)
+    # 31/12/2020, 23:59 - Name: Message (European/Indian 24h format)
     re.compile(
-        r"^(\d{1,2}/\d{1,2}/\d{4}),?\s+(\d{1,2}:\d{2})\s*-\s*([^:]+):\s*(.*)$"
+        r"^(\d{1,2}[/-]\d{1,2}[/-]\d{4}),?\s+(\d{1,2}:\d{2})\s*[-—]\s*([^:]+):\s*(.*)$",
+        re.MULTILINE,
+    ),
+    # 2026-10-22, 18:30 - Name: Message (ISO date format)
+    re.compile(
+        r"^(\d{4}[/-]\d{1,2}[/-]\d{1,2}),?\s+(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]M|[ap]m)?)\s*[-—]\s*([^:]+):\s*(.*)$",
+        re.MULTILINE,
     ),
 ]
 
@@ -34,6 +41,39 @@ SYSTEM_OMITTED_MESSAGES = [
     "this message was deleted",
 ]
 
+MAX_MEMORY_CONTENT_LENGTH = 8000  # Database check constraint is 1 to 10000 chars
+
+
+def chunk_long_content(content: str, max_chars: int = MAX_MEMORY_CONTENT_LENGTH) -> List[str]:
+    """Ensure content never exceeds database check constraint (10,000 chars max)."""
+    content = content.strip()
+    if not content:
+        return []
+    if len(content) <= max_chars:
+        return [content]
+
+    chunks = []
+    remaining = content
+    while remaining:
+        if len(remaining) <= max_chars:
+            chunks.append(remaining)
+            break
+        # Find best split point near max_chars
+        split_idx = remaining.rfind("\n", 0, max_chars)
+        if split_idx == -1 or split_idx < max_chars // 2:
+            split_idx = remaining.rfind(". ", 0, max_chars)
+        if split_idx == -1 or split_idx < max_chars // 2:
+            split_idx = remaining.rfind(" ", 0, max_chars)
+        if split_idx == -1 or split_idx == 0:
+            split_idx = max_chars
+
+        chunk = remaining[:split_idx].strip()
+        if chunk:
+            chunks.append(chunk)
+        remaining = remaining[split_idx:].strip()
+
+    return chunks
+
 
 def is_system_whatsapp_message(text: str) -> bool:
     """Check if WhatsApp message is a system notification or omitted media."""
@@ -42,23 +82,29 @@ def is_system_whatsapp_message(text: str) -> bool:
 
 
 def parse_plain_text(content: str) -> List[Dict[str, Any]]:
-    """Parse plain text, splitting on multiple newlines if distinct paragraphs exist."""
-    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
-    if not paragraphs:
+    """Parse plain text, splitting on multiple newlines and safely chunking oversized paragraphs."""
+    raw_paras = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
+    if not raw_paras:
         return []
 
-    return [
-        {
-            "content": para,
-            "source_type": "journal",
-            "memory_date": None,
-        }
-        for para in paragraphs
-    ]
+    memories = []
+    for para in raw_paras:
+        # Split paragraph if it exceeds database max limit
+        chunks = chunk_long_content(para, max_chars=MAX_MEMORY_CONTENT_LENGTH)
+        for chunk in chunks:
+            memories.append(
+                {
+                    "content": chunk,
+                    "source_type": "journal",
+                    "memory_date": None,
+                }
+            )
+
+    return memories
 
 
 def parse_pdf(file_bytes: bytes) -> List[Dict[str, Any]]:
-    """Extract text from PDF pages."""
+    """Extract text from PDF pages with safe chunking."""
     reader = pypdf.PdfReader(io.BytesIO(file_bytes))
     memories = []
 
@@ -66,20 +112,22 @@ def parse_pdf(file_bytes: bytes) -> List[Dict[str, Any]]:
         text = page.extract_text() or ""
         text = text.strip()
         if text:
-            memories.append(
-                {
-                    "content": text,
-                    "source_type": "journal",
-                    "memory_date": None,
-                    "metadata": {"page": page_num + 1},
-                }
-            )
+            chunks = chunk_long_content(text, max_chars=MAX_MEMORY_CONTENT_LENGTH)
+            for idx, chunk in enumerate(chunks):
+                memories.append(
+                    {
+                        "content": chunk,
+                        "source_type": "journal",
+                        "memory_date": None,
+                        "metadata": {"page": page_num + 1, "subchunk": idx},
+                    }
+                )
 
     return memories
 
 
 def parse_docx(file_bytes: bytes) -> List[Dict[str, Any]]:
-    """Extract paragraphs from Word .docx file."""
+    """Extract paragraphs from Word .docx file with safe chunking."""
     doc = docx.Document(io.BytesIO(file_bytes))
     memories = []
 
@@ -88,31 +136,37 @@ def parse_docx(file_bytes: bytes) -> List[Dict[str, Any]]:
         text = para.text.strip()
         if not text:
             if current_section:
-                memories.append(
-                    {
-                        "content": "\n".join(current_section),
-                        "source_type": "journal",
-                        "memory_date": None,
-                    }
-                )
+                full_text = "\n".join(current_section)
+                for chunk in chunk_long_content(full_text, max_chars=MAX_MEMORY_CONTENT_LENGTH):
+                    memories.append(
+                        {
+                            "content": chunk,
+                            "source_type": "journal",
+                            "memory_date": None,
+                        }
+                    )
                 current_section = []
         else:
             current_section.append(text)
 
     if current_section:
-        memories.append(
-            {
-                "content": "\n".join(current_section),
-                "source_type": "journal",
-                "memory_date": None,
-            }
-        )
+        full_text = "\n".join(current_section)
+        for chunk in chunk_long_content(full_text, max_chars=MAX_MEMORY_CONTENT_LENGTH):
+            memories.append(
+                {
+                    "content": chunk,
+                    "source_type": "journal",
+                    "memory_date": None,
+                }
+            )
 
     return memories
 
 
 def parse_whatsapp_chat(content: str) -> List[Dict[str, Any]]:
     """Parse WhatsApp exported .txt file into clean individual memories."""
+    # Normalize narrow non-breaking spaces and non-breaking spaces from iOS/Android exports
+    content = content.replace("\u202f", " ").replace("\u00a0", " ")
     lines = content.splitlines()
     entries = []
     current_entry: Optional[Dict[str, Any]] = None
@@ -133,7 +187,11 @@ def parse_whatsapp_chat(content: str) -> List[Dict[str, Any]]:
                     continue
 
                 if current_entry:
-                    entries.append(current_entry)
+                    # Push previous entry with safe chunking
+                    for chunk in chunk_long_content(current_entry["content"], max_chars=MAX_MEMORY_CONTENT_LENGTH):
+                        entry_copy = dict(current_entry)
+                        entry_copy["content"] = chunk
+                        entries.append(entry_copy)
 
                 current_entry = {
                     "content": f"{sender}: {msg_text.strip()}",
@@ -149,7 +207,10 @@ def parse_whatsapp_chat(content: str) -> List[Dict[str, Any]]:
             current_entry["content"] += f"\n{line_clean}"
 
     if current_entry:
-        entries.append(current_entry)
+        for chunk in chunk_long_content(current_entry["content"], max_chars=MAX_MEMORY_CONTENT_LENGTH):
+            entry_copy = dict(current_entry)
+            entry_copy["content"] = chunk
+            entries.append(entry_copy)
 
     return entries
 
@@ -162,13 +223,11 @@ def parse_document(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
         return parse_pdf(file_bytes)
     elif lower_name.endswith(".docx"):
         return parse_docx(file_bytes)
-    elif lower_name.endswith(".txt"):
-        text_content = file_bytes.decode("utf-8", errors="replace")
-        # Check if it looks like a WhatsApp export
-        if any(pattern.search(text_content[:500]) for pattern in WHATSAPP_PATTERNS):
-            return parse_whatsapp_chat(text_content)
-        return parse_plain_text(text_content)
     else:
         # Default text decode attempt
         text_content = file_bytes.decode("utf-8", errors="replace")
+        clean_sample = text_content[:15000].replace("\u202f", " ").replace("\u00a0", " ")
+        # Check if it contains WhatsApp chat format anywhere in first 15k chars
+        if any(pattern.search(clean_sample) for pattern in WHATSAPP_PATTERNS):
+            return parse_whatsapp_chat(text_content)
         return parse_plain_text(text_content)

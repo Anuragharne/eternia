@@ -65,6 +65,30 @@ async def app_error_handler(request: Request, exc: AppError):
     )
 
 
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.exception(f"Unhandled exception on {request.method} {request.url}: {exc}")
+    status_code = 500
+    msg = str(exc)
+    code = "INTERNAL_SERVER_ERROR"
+    if "check constraint" in msg.lower() or "violates" in msg.lower() or "23514" in msg:
+        status_code = 400
+        code = "VALIDATION_ERROR"
+        msg = "A memory item exceeded database character limits or was empty."
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": code,
+                "message": msg,
+                "status": status_code,
+                "details": {},
+            }
+        },
+    )
+
+
 @app.get("/health", tags=["Health"])
 def health_check():
     """Service health check endpoint."""

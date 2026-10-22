@@ -36,6 +36,9 @@ def add_memory(
         memory_date=payload.memory_date.isoformat() if payload.memory_date else None,
         custom_tags=payload.tags,
     )
+    if not memory:
+        from backend.app.core.errors import ValidationError
+        raise ValidationError("Memory content cannot be empty.")
     return memory
 
 
