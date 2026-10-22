@@ -95,11 +95,24 @@ class EmbeddingService:
 
             if uncached_texts:
                 config = types.EmbedContentConfig(output_dimensionality=self.output_dim)
-                response = self.client.models.embed_content(
-                    model=self.model,
-                    contents=uncached_texts,
-                    config=config,
-                )
+                contents_payload = [
+                    types.Content(parts=[types.Part.from_text(text=t)])
+                    for t in uncached_texts
+                ]
+                try:
+                    response = self.client.models.embed_content(
+                        model=self.model,
+                        contents=contents_payload,
+                        config=config,
+                    )
+                except Exception as e:
+                    logger.warning(f"Error embedding with {self.model}: {e}. Retrying with gemini-embedding-2-preview...")
+                    response = self.client.models.embed_content(
+                        model="gemini-embedding-2-preview",
+                        contents=contents_payload,
+                        config=config,
+                    )
+
                 for text, emb in zip(uncached_texts, response.embeddings):
                     c_hash = self.get_content_hash(text)
                     self._cache[c_hash] = emb.values

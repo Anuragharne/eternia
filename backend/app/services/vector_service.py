@@ -104,6 +104,19 @@ class VectorService:
         )
         return True
 
+    def upsert_batch(
+        self,
+        points: List[models.PointStruct],
+    ) -> bool:
+        """Upsert a list of point structures into Qdrant in a single network call."""
+        if not points:
+            return True
+        self.client.upsert(
+            collection_name=self.collection_name,
+            points=points,
+        )
+        return True
+
     def search_memories(
         self,
         user_id: str,

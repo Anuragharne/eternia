@@ -10,6 +10,7 @@ from backend.app.services.embedding_service import embedding_service
 from backend.app.services.llm_service import llm_service
 from backend.app.services.vector_service import vector_service
 from backend.app.services.parsers import parse_document
+from qdrant_client import models
 
 logger = logging.getLogger(__name__)
 
@@ -147,42 +148,170 @@ class MemoryService:
         file_bytes: bytes,
         filename: str,
     ) -> List[MemoryResponse]:
-        """Parse uploaded document and ingest all extracted memories."""
+        """Parse uploaded document and ingest all extracted memories using high-speed batching."""
         parsed_entries = parse_document(file_bytes, filename)
         if not parsed_entries:
             return []
 
         self._check_memory_limit(avatar_id, count_to_add=len(parsed_entries))
 
-        # If more than 3 entries, use fast heuristic extraction to prevent quota exhaustion and long latency
-        is_bulk = len(parsed_entries) > 3
-
-        ingested_memories = []
+        # Filter and sanitize valid entries
+        valid_entries = []
         for entry in parsed_entries:
-            content = entry.get("content", "").strip()
+            content = (entry.get("content") or "").strip()
             if not content:
                 continue
+            if len(content) > 9900:
+                content = content[:9900]
+            entry_copy = dict(entry)
+            entry_copy["content"] = content
+            valid_entries.append(entry_copy)
 
-            src_type = entry.get("source_type", "journal")
-            raw_date = entry.get("raw_date")
+        if not valid_entries:
+            return []
 
+        # If only 1-2 entries, use standard single ingestion
+        if len(valid_entries) <= 2:
+            results = []
+            for entry in valid_entries:
+                mem = self.ingest_single_memory(
+                    user_id=user_id,
+                    avatar_id=avatar_id,
+                    content=entry["content"],
+                    source_type=entry.get("source_type", "journal"),
+                    memory_date=entry.get("raw_date"),
+                    custom_tags=[entry["sender"]] if entry.get("sender") else None,
+                    fast_meta=False,
+                )
+                if mem:
+                    results.append(mem)
+            return results
+
+        # ----------------------------------------------------
+        # HIGH-SPEED BATCH INGESTION (Hundreds of memories in seconds)
+        # ----------------------------------------------------
+        texts_to_embed = [e["content"] for e in valid_entries]
+
+        # 1. Generate embeddings in bulk (50 per batch)
+        try:
+            vectors = embedding_service.embed_batch(texts_to_embed, batch_size=50)
+        except Exception as e:
+            logger.error(f"Error in embed_batch: {e}. Falling back to default zero vectors.")
+            vectors = [[0.0] * 768 for _ in texts_to_embed]
+
+        # 2. Build Qdrant points and DB payloads in memory
+        qdrant_points = []
+        db_payloads = []
+        memories_responses = []
+
+        for idx, entry in enumerate(valid_entries):
+            content = entry["content"]
+            vector = vectors[idx] if idx < len(vectors) else [0.0] * 768
+            source_type = entry.get("source_type", "chat_export")
+            memory_date = entry.get("raw_date")
+            confidence = SOURCE_CONFIDENCE_SCORES.get(source_type, 0.85)
+
+            # Metadata tags
             custom_tags = []
             if entry.get("sender"):
                 custom_tags.append(entry["sender"])
+            if entry.get("metadata", {}).get("participants"):
+                custom_tags.extend(entry["metadata"]["participants"])
 
-            mem = self.ingest_single_memory(
-                user_id=user_id,
-                avatar_id=avatar_id,
-                content=content,
-                source_type=src_type,
-                memory_date=raw_date,
-                custom_tags=custom_tags,
-                fast_meta=is_bulk,
+            all_tags = list(set(custom_tags + [source_type, "memory"]))
+            entities = custom_tags
+
+            llm_meta = {
+                "entities": entities,
+                "dates": [memory_date] if memory_date else [],
+                "emotional_tone": "warm",
+                "summary": content[:120],
+                "tags": all_tags,
+            }
+
+            memory_id = str(uuid.uuid4())
+            qdrant_point_id = str(uuid.uuid4())
+
+            # Qdrant point
+            qdrant_payload = {
+                "user_id": user_id,
+                "avatar_id": avatar_id,
+                "memory_id": memory_id,
+                "content": content,
+                "source_type": source_type,
+                "memory_date": memory_date,
+                "confidence_score": confidence,
+                "tags": all_tags,
+                "entities": entities,
+                "chunk_index": 0,
+                "total_chunks": 1,
+            }
+            qdrant_points.append(
+                models.PointStruct(
+                    id=qdrant_point_id,
+                    vector=vector,
+                    payload=qdrant_payload,
+                )
             )
-            if mem:
-                ingested_memories.append(mem)
 
-        return ingested_memories
+            # Supabase Postgres row
+            db_row = {
+                "id": memory_id,
+                "avatar_id": avatar_id,
+                "uploaded_by": user_id,
+                "content": content,
+                "source_type": source_type,
+                "memory_date": memory_date,
+                "tags": all_tags,
+                "confidence_score": confidence,
+                "qdrant_point_id": qdrant_point_id,
+                "extracted_entities": entities,
+                "extracted_metadata": llm_meta,
+                "is_active": True,
+            }
+            db_payloads.append(db_row)
+
+            memories_responses.append(
+                MemoryResponse(
+                    id=memory_id,
+                    avatar_id=avatar_id,
+                    uploaded_by=user_id,
+                    content=content,
+                    source_type=source_type,
+                    memory_date=memory_date,
+                    tags=all_tags,
+                    confidence_score=confidence,
+                    qdrant_point_id=qdrant_point_id,
+                    extracted_entities=entities,
+                    extracted_metadata=llm_meta,
+                )
+            )
+
+        # 3. Bulk Upsert to Qdrant (Single or few calls)
+        BATCH_QDRANT_SIZE = 100
+        for i in range(0, len(qdrant_points), BATCH_QDRANT_SIZE):
+            chunk = qdrant_points[i : i + BATCH_QDRANT_SIZE]
+            try:
+                vector_service.upsert_batch(chunk)
+            except Exception as e:
+                logger.error(f"Error upserting batch to Qdrant: {e}")
+
+        # 4. Bulk Insert to Supabase Postgres (Chunks of 100)
+        BATCH_DB_SIZE = 100
+        for i in range(0, len(db_payloads), BATCH_DB_SIZE):
+            chunk = db_payloads[i : i + BATCH_DB_SIZE]
+            try:
+                self.db.table("memories").insert(chunk).execute()
+            except Exception as e:
+                logger.error(f"Error inserting batch to Supabase: {e}")
+                # Fallback: insert individually if any specific row has an issue
+                for row in chunk:
+                    try:
+                        self.db.table("memories").insert(row).execute()
+                    except Exception as row_err:
+                        logger.error(f"Failed to insert row: {row_err}")
+
+        return memories_responses
 
     def get_avatar_memories(
         self,

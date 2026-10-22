@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Google Gemini AI
     GEMINI_API_KEY: str
     GEMINI_MODEL: str = "gemini-2.5-flash"
-    EMBEDDING_MODEL: str = "gemini-embedding-001"
+    EMBEDDING_MODEL: str = "gemini-embedding-2"
 
     # Supabase
     SUPABASE_URL: str

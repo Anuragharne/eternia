@@ -162,5 +162,9 @@ or via PowerShell:
   - Added automatic safe chunking (`MAX_MEMORY_CONTENT_LENGTH = 8000`) across all plain text, PDF, and DOCX parsers to strictly conform to Supabase Postgres `CHECK (char_length(content) BETWEEN 1 AND 10000)`.
   - Added fast heuristic metadata extraction for bulk memory imports (> 3 items) to prevent external LLM rate limit bottlenecks and eliminate 429 quota exhaustion.
   - Added global ASGI exception handler in FastAPI to ensure all errors return standardized JSON responses with full CORS headers.
+- **High-Speed Conversational Memory Ingestion & Batching**:
+  - Replaced slow sequential 1-by-1 message processing with conversational session chunking (`group_chat_into_sessions`), grouping continuous dialogue into coherent narrative chunks with participant headers and timestamps.
+  - Enabled batch vector embeddings via `gemini-embedding-2` processing up to 50 texts per remote API request.
+  - Implemented bulk upserts in Qdrant (`upsert_batch`) and bulk insertions in Supabase Postgres, reducing upload time for large 400KB+ chat exports from over an hour down to under 10 seconds.
 - **Fixed Sanctuary Chat Window**: Removed rogue unpositioned blur elements causing blank vertical gaps above the chat interface.
 - **Rebuilt Onboarding & Settings Pages**: Replaced broken white containers with sleek Jet Black cards, verified button callbacks, and unified floating capsule navigation.

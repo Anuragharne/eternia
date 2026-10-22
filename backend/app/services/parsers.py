@@ -163,13 +163,86 @@ def parse_docx(file_bytes: bytes) -> List[Dict[str, Any]]:
     return memories
 
 
+def group_chat_into_sessions(
+    messages: List[Dict[str, Any]],
+    max_msgs_per_session: int = 20,
+    max_chars: int = 2500,
+) -> List[Dict[str, Any]]:
+    """Group sequential chat messages into coherent conversational dialogue memories."""
+    if not messages:
+        return []
+
+    # If small number of messages (<= 8), keep individual messages
+    if len(messages) <= 8:
+        results = []
+        for m in messages:
+            results.append({
+                "content": f"{m['sender']}: {m['text']}",
+                "source_type": "chat_export",
+                "sender": m["sender"],
+                "raw_date": f"{m['date_str']} {m['time_str']}",
+                "metadata": {"sender": m["sender"], "date_str": m["date_str"]},
+            })
+        return results
+
+    sessions = []
+    current_msgs: List[Dict[str, Any]] = []
+    current_chars = 0
+
+    def finalize_session(msgs: List[Dict[str, Any]]):
+        if not msgs:
+            return
+        start_date = msgs[0]["date_str"]
+        start_time = msgs[0]["time_str"]
+        end_time = msgs[-1]["time_str"]
+        participants = list(dict.fromkeys(m["sender"] for m in msgs))
+        participants_str = " & ".join(participants[:3])
+        if len(participants) > 3:
+            participants_str += f" and {len(participants) - 3} others"
+
+        header = f"Conversation between {participants_str} ({start_date} {start_time} - {end_time}):"
+        dialogue = "\n".join(f"[{m['time_str']}] {m['sender']}: {m['text']}" for m in msgs)
+        full_content = f"{header}\n\n{dialogue}"
+
+        for chunk in chunk_long_content(full_content, max_chars=MAX_MEMORY_CONTENT_LENGTH):
+            sessions.append({
+                "content": chunk,
+                "source_type": "chat_export",
+                "sender": participants[0] if participants else "Unknown",
+                "raw_date": f"{start_date} {start_time}",
+                "metadata": {
+                    "participants": participants,
+                    "date_str": start_date,
+                    "message_count": len(msgs),
+                },
+            })
+
+    for msg in messages:
+        line_str = f"[{msg['time_str']}] {msg['sender']}: {msg['text']}"
+        date_changed = current_msgs and current_msgs[-1]["date_str"] != msg["date_str"]
+        size_limit = len(current_msgs) >= max_msgs_per_session or (current_chars + len(line_str) > max_chars)
+
+        if current_msgs and (date_changed or size_limit):
+            finalize_session(current_msgs)
+            current_msgs = []
+            current_chars = 0
+
+        current_msgs.append(msg)
+        current_chars += len(line_str)
+
+    if current_msgs:
+        finalize_session(current_msgs)
+
+    return sessions
+
+
 def parse_whatsapp_chat(content: str) -> List[Dict[str, Any]]:
-    """Parse WhatsApp exported .txt file into clean individual memories."""
+    """Parse WhatsApp exported .txt file into clean structured conversational memories."""
     # Normalize narrow non-breaking spaces and non-breaking spaces from iOS/Android exports
     content = content.replace("\u202f", " ").replace("\u00a0", " ")
     lines = content.splitlines()
-    entries = []
-    current_entry: Optional[Dict[str, Any]] = None
+    raw_messages = []
+    current_msg: Optional[Dict[str, Any]] = None
 
     for line in lines:
         line_clean = line.strip()
@@ -186,33 +259,25 @@ def parse_whatsapp_chat(content: str) -> List[Dict[str, Any]]:
                 if is_system_whatsapp_message(msg_text):
                     continue
 
-                if current_entry:
-                    # Push previous entry with safe chunking
-                    for chunk in chunk_long_content(current_entry["content"], max_chars=MAX_MEMORY_CONTENT_LENGTH):
-                        entry_copy = dict(current_entry)
-                        entry_copy["content"] = chunk
-                        entries.append(entry_copy)
+                if current_msg:
+                    raw_messages.append(current_msg)
 
-                current_entry = {
-                    "content": f"{sender}: {msg_text.strip()}",
-                    "source_type": "chat_export",
+                current_msg = {
+                    "date_str": date_str.strip(),
+                    "time_str": time_str.strip(),
                     "sender": sender.strip(),
-                    "raw_date": f"{date_str} {time_str}",
-                    "metadata": {"sender": sender.strip(), "date_str": date_str},
+                    "text": msg_text.strip(),
                 }
                 break
 
-        if not matched and current_entry:
+        if not matched and current_msg:
             # Multi-line message continuation
-            current_entry["content"] += f"\n{line_clean}"
+            current_msg["text"] += f"\n{line_clean}"
 
-    if current_entry:
-        for chunk in chunk_long_content(current_entry["content"], max_chars=MAX_MEMORY_CONTENT_LENGTH):
-            entry_copy = dict(current_entry)
-            entry_copy["content"] = chunk
-            entries.append(entry_copy)
+    if current_msg:
+        raw_messages.append(current_msg)
 
-    return entries
+    return group_chat_into_sessions(raw_messages)
 
 
 def parse_document(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
