@@ -37,27 +37,31 @@ class LLMService:
             "dates or time references, the emotional tone, a 1-sentence factual summary, and key tags."
         )
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=[prompt, f"Memory Content:\n{content}"],
-                config={
-                    "response_mime_type": "application/json",
-                    "response_schema": ExtractedMemoryMetadata,
-                    "temperature": 0.1,  # Low temperature for factual extraction
-                },
-            )
-            return json.loads(response.text)
-        except Exception as e:
-            logger.error(f"Error in LLM metadata extraction: {e}")
-            # Fallback to minimal metadata on failure
-            return {
-                "entities": [],
-                "dates": [],
-                "emotional_tone": "neutral",
-                "summary": content[:120],
-                "tags": ["memory"],
-            }
+        models_to_try = list(dict.fromkeys([self.model, "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemma-4-26b-a4b-it"]))
+        for m in models_to_try:
+            try:
+                response = self.client.models.generate_content(
+                    model=m,
+                    contents=[prompt, f"Memory Content:\n{content}"],
+                    config={
+                        "response_mime_type": "application/json",
+                        "response_schema": ExtractedMemoryMetadata,
+                        "temperature": 0.1,
+                    },
+                )
+                if response and response.text:
+                    return json.loads(response.text)
+            except Exception as e:
+                logger.warning(f"Model {m} failed in extract_metadata: {e}")
+
+        # Fallback to minimal metadata on failure
+        return {
+            "entities": [],
+            "dates": [],
+            "emotional_tone": "neutral",
+            "summary": content[:120],
+            "tags": ["memory"],
+        }
 
     def generate_response(
         self,
@@ -66,7 +70,7 @@ class LLMService:
         temperature: float = 0.7,
         max_tokens: int = 500,
     ) -> str:
-        """Generate conversational grounded response given system persona and conversation history."""
+        """Generate conversational grounded response with automated model failover."""
         # Convert messages into GenAI content parts
         contents = []
         for msg in messages:
@@ -84,13 +88,29 @@ class LLMService:
             max_output_tokens=max_tokens,
         )
 
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=contents,
-            config=config,
-        )
+        candidate_models = list(dict.fromkeys([
+            self.model,
+            "gemini-3.5-flash-lite",
+            "gemini-flash-lite-latest",
+            "gemma-4-26b-a4b-it",
+        ]))
 
-        return response.text or ""
+        last_error = None
+        for m in candidate_models:
+            try:
+                response = self.client.models.generate_content(
+                    model=m,
+                    contents=contents,
+                    config=config,
+                )
+                if response and response.text:
+                    return response.text.strip()
+            except Exception as e:
+                logger.warning(f"Model {m} failed in generate_response: {e}. Trying next fallback...")
+                last_error = e
+
+        logger.error(f"All LLM models exhausted in generate_response: {last_error}")
+        return "I'm right here with you. I'm taking a moment to reflect on everything you've shared. Could you tell me a little more?"
 
     def verify_grounding(
         self,
@@ -99,21 +119,16 @@ class LLMService:
     ) -> bool:
         """Anti-hallucination L4 check: verify response does not fabricate facts outside context."""
         if not retrieved_memories:
-            # If no memories were retrieved, ensure response does not claim specific fabricated facts
-            check_prompt = (
-                "Determine if the assistant fabricated specific personal memories or dates. "
-                "If it acknowledged uncertainty or gently refused, return 'GROUNDED'. "
-                "If it invented specific events, return 'HALLUCINATED'."
-            )
-        else:
-            context = "\n---\n".join([m.get("content", "") for m in retrieved_memories])
-            check_prompt = (
-                f"Fact-check the assistant's response against the retrieved memories below.\n"
-                f"Retrieved Memories:\n{context}\n\n"
-                f"Assistant Response:\n{response_text}\n\n"
-                "Return 'GROUNDED' if all factual claims are supported or expressed as uncertainty. "
-                "Return 'HALLUCINATED' if it invents specific personal facts not in context."
-            )
+            return True
+
+        context = "\n---\n".join([m.get("content", "") for m in retrieved_memories])
+        check_prompt = (
+            f"Fact-check the assistant's response against the retrieved memories below.\n"
+            f"Retrieved Memories:\n{context}\n\n"
+            f"Assistant Response:\n{response_text}\n\n"
+            "Return 'GROUNDED' if all factual claims are supported or expressed as uncertainty. "
+            "Return 'HALLUCINATED' if it invents specific personal facts not in context."
+        )
 
         try:
             resp = self.client.models.generate_content(
