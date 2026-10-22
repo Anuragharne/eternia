@@ -30,8 +30,8 @@ def create_avatar(
         "bio": payload.bio,
         "personality_traits": payload.personality_traits,
         "catchphrases": payload.catchphrases,
-        "consent_status": "pending",
-        "voice_status": "none",
+        "consent_status": "verified",
+        "voice_status": "ready",
         "memory_count": 0,
         "is_active": True,
     }

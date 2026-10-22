@@ -149,6 +149,12 @@ or via PowerShell:
 ---
 
 ## 📝 Recent Updates & Changelog
+- **Uncapped Testing Phase (Unlimited Chat, Voice & Video)**:
+  - Lifted all tier quotas, memory limits, and slot restrictions across backend and frontend.
+  - Added live **Speech-to-Text Microphone Input** (`<Mic />`) directly in the Sanctuary chat input pill.
+  - Added **Text-to-Speech Audio Playback** (`<Volume2 />`) allowing companions to speak their responses aloud in natural cadence.
+  - Added **Live Voice & Video Presence Call Modal** (`<Phone />` / `<Video />`) featuring an animated audio visualizer and continuous conversation.
+  - Set default companion consent and voice status to active immediately upon creation.
 - **Direct 3D Hero Avatar**: Replaced the 3D boy avatar with an iridescent neural visual; eliminated outer box/card borders, badge clutter, and speech bubble for a pure, floating 3D presence.
 - **Strict 4-Color Brand Palette Enforced**: Mapped the entire website to `#433075` (Deep Purple), `#A58CF4` (Lavender), `#FAFAFA` (Soft White), and `#0D0D0D` (Jet Black). 0 off-palette colors across all files.
 - **Fixed Sanctuary Chat Window**: Removed rogue unpositioned blur elements causing blank vertical gaps above the chat interface.

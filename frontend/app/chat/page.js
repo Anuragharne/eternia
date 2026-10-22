@@ -14,6 +14,14 @@ import {
   X,
   ArrowLeft,
   Settings as SettingsIcon,
+  Phone,
+  PhoneOff,
+  Video,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Radio,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -31,6 +39,14 @@ function ChatContent() {
   const [isTyping, setIsTyping] = useState(false);
   const [loadingAvatars, setLoadingAvatars] = useState(true);
 
+  // Voice & Video states (Unrestricted testing phase)
+  const [isRecording, setIsRecording] = useState(false);
+  const [playingMessageId, setPlayingMessageId] = useState(null);
+  const [showLiveCallModal, setShowLiveCallModal] = useState(false);
+  const [callMode, setCallMode] = useState("video"); // "video" | "voice"
+  const [isMuted, setIsMuted] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
+
   // Modal for adding a memory
   const [showMemoryModal, setShowMemoryModal] = useState(false);
   const [newMemoryText, setNewMemoryText] = useState("");
@@ -39,6 +55,8 @@ function ChatContent() {
   const [memorySuccessMsg, setMemorySuccessMsg] = useState("");
 
   const messagesEndRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const callTimerRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,6 +65,21 @@ function ChatContent() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isTyping]);
+
+  // Live call timer
+  useEffect(() => {
+    if (showLiveCallModal) {
+      setCallDuration(0);
+      callTimerRef.current = setInterval(() => {
+        setCallDuration((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+    }
+    return () => {
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+    };
+  }, [showLiveCallModal]);
 
   // Load avatars on mount
   useEffect(() => {
@@ -149,6 +182,84 @@ function ChatContent() {
     }
   };
 
+  // Speech-to-Text Microphone Recording
+  const toggleRecording = () => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Microphone speech recognition is supported in Chrome, Edge, and Safari.");
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        setIsRecording(true);
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map((res) => res[0].transcript)
+          .join("");
+        setInput(transcript);
+      };
+
+      recognition.onerror = (e) => {
+        console.error("Speech recognition error:", e);
+        setIsRecording(false);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error("Speech recognition initialization error:", err);
+      setIsRecording(false);
+    }
+  };
+
+  // Text-to-Speech Audio Playback
+  const handleSpeakMessage = (msgId, text) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    if (playingMessageId === msgId) {
+      window.speechSynthesis.cancel();
+      setPlayingMessageId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.05;
+
+    utterance.onend = () => {
+      setPlayingMessageId(null);
+    };
+
+    utterance.onerror = () => {
+      setPlayingMessageId(null);
+    };
+
+    setPlayingMessageId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
+
   const handleAddMemory = async (e) => {
     e.preventDefault();
     if (!activeAvatar) return;
@@ -198,6 +309,12 @@ function ChatContent() {
       minute: "2-digit",
       hour12: true,
     });
+  };
+
+  const formatCallDuration = (secs) => {
+    const mins = Math.floor(secs / 60);
+    const remSecs = secs % 60;
+    return `${mins.toString().padStart(2, "0")}:${remSecs.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -267,7 +384,7 @@ function ChatContent() {
               <div className="pt-3 border-t border-[#A58CF4]/15 flex items-center justify-between text-[11px] text-[rgba(250,250,250,0.7)]">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#A58CF4] shadow-[0_0_8px_#A58CF4] inline-block"></span>
-                  Grounded Sanctuary
+                  Grounded Sanctuary • Uncapped
                 </span>
                 <Link href="/settings" className="hover:text-[#A58CF4] no-underline text-[rgba(250,250,250,0.7)] transition-colors">
                   <SettingsIcon size={14} />
@@ -296,12 +413,33 @@ function ChatContent() {
                     </div>
                   </div>
 
+                  {/* Header Actions: Live Voice, Live Video, Add Memory */}
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowMemoryModal(true)}
-                      className="btn-pill-ghost text-[11px] px-3 py-1 flex items-center gap-1"
+                      onClick={() => {
+                        setCallMode("voice");
+                        setShowLiveCallModal(true);
+                      }}
+                      className="btn-pill-ghost text-[11px] px-3 py-1 flex items-center gap-1.5 cursor-pointer"
+                      title="Start Unlimited Live Voice Session"
                     >
-                      <Plus size={13} /> Add Story / Memory
+                      <Phone size={12} className="text-[#A58CF4]" /> Live Voice
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCallMode("video");
+                        setShowLiveCallModal(true);
+                      }}
+                      className="btn-pill-primary text-[11px] px-3 py-1 flex items-center gap-1.5 cursor-pointer"
+                      title="Start Unlimited Live Video Presence"
+                    >
+                      <Video size={12} className="text-[#FAFAFA]" /> Live Video
+                    </button>
+                    <button
+                      onClick={() => setShowMemoryModal(true)}
+                      className="btn-pill-ghost text-[11px] px-3 py-1 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={13} /> Add Story
                     </button>
                   </div>
                 </div>
@@ -330,20 +468,41 @@ function ChatContent() {
                       <p className="whitespace-pre-wrap">{m.content}</p>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-1 px-1">
+                    <div className="flex items-center gap-3 mt-1.5 px-1">
                       <span className="text-[10.5px] text-[rgba(250,250,250,0.55)]">
                         {formatTime(m.timestamp)}
                       </span>
                       {m.role === "assistant" && (
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                            m.grounded
-                              ? "bg-[#433075] text-[#FAFAFA] border border-[#A58CF4]/40"
-                              : "bg-[#433075]/40 text-[#A58CF4] border border-[#A58CF4]/25"
-                          }`}
-                        >
-                          {m.grounded ? "✓ Grounded in Memory" : "✦ Gentle Reflection"}
-                        </span>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleSpeakMessage(m.id, m.content)}
+                            className="text-[10.5px] text-[rgba(250,250,250,0.65)] hover:text-[#A58CF4] flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded-md hover:bg-[#433075]/30 cursor-pointer"
+                            title="Hear companion voice (Text-to-speech)"
+                          >
+                            {playingMessageId === m.id ? (
+                              <>
+                                <VolumeX size={12} className="text-[#A58CF4] animate-pulse" />
+                                <span className="text-[#A58CF4]">Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 size={12} className="text-[#A58CF4]" />
+                                <span>Hear Voice</span>
+                              </>
+                            )}
+                          </button>
+
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                              m.grounded
+                                ? "bg-[#433075] text-[#FAFAFA] border border-[#A58CF4]/40"
+                                : "bg-[#433075]/40 text-[#A58CF4] border border-[#A58CF4]/25"
+                            }`}
+                          >
+                            {m.grounded ? "✓ Grounded in Memory" : "✦ Gentle Reflection"}
+                          </span>
+                        </>
                       )}
                     </div>
                   </div>
@@ -365,6 +524,7 @@ function ChatContent() {
               {/* Chat Input Pill */}
               <div className="p-4 bg-[#433075]/15 border-t border-[#A58CF4]/20">
                 <div className="chat-input-pill">
+                  {/* File Upload Button */}
                   <button
                     type="button"
                     onClick={() => setShowMemoryModal(true)}
@@ -374,9 +534,27 @@ function ChatContent() {
                     <Upload size={17} />
                   </button>
 
+                  {/* Microphone Speech-to-Text Button */}
+                  <button
+                    type="button"
+                    onClick={toggleRecording}
+                    className={`transition-all p-1.5 rounded-full cursor-pointer ${
+                      isRecording
+                        ? "bg-[#A58CF4] text-[#0D0D0D] animate-pulse shadow-[0_0_12px_#A58CF4]"
+                        : "text-[rgba(250,250,250,0.7)] hover:text-[#A58CF4]"
+                    }`}
+                    title={isRecording ? "Listening... click to finish" : "Speak message (Microphone)"}
+                  >
+                    {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
+                  </button>
+
                   <input
                     type="text"
-                    placeholder={`Message ${activeAvatar ? activeAvatar.name : "companion"}...`}
+                    placeholder={
+                      isRecording
+                        ? "Listening to your voice..."
+                        : `Message ${activeAvatar ? activeAvatar.name : "companion"}...`
+                    }
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -388,7 +566,7 @@ function ChatContent() {
                     type="button"
                     onClick={handleSend}
                     disabled={!input.trim() || isTyping || !activeAvatar}
-                    className="btn-pill-primary text-[12px] px-4 py-2 disabled:opacity-40"
+                    className="btn-pill-primary text-[12px] px-4 py-2 disabled:opacity-40 cursor-pointer"
                   >
                     <Send size={13} className="mr-1" /> Send
                   </button>
@@ -400,6 +578,85 @@ function ChatContent() {
         </div>
 
       </main>
+
+      {/* Live Voice & Video Presence Call Modal (Unlimited Testing Session) */}
+      {showLiveCallModal && (
+        <div className="modal-backdrop">
+          <div className="w-full max-w-[620px] rounded-[32px] bg-[#0D0D0D] p-6 sm:p-8 border border-[#A58CF4]/30 shadow-[0_24px_80px_rgba(13,13,13,0.95)] flex flex-col items-center relative text-center">
+            
+            {/* Top Status */}
+            <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-[#A58CF4]/20">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#A58CF4] animate-pulse" />
+                <span className="text-[12px] font-medium text-[#FAFAFA]">
+                  Live {callMode === "video" ? "Video" : "Voice"} Presence • Uncapped Testing Call
+                </span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#433075] text-[#FAFAFA] text-[11px] font-medium border border-[#A58CF4]/30">
+                {formatCallDuration(callDuration)}
+              </span>
+            </div>
+
+            {/* Neural Presence View */}
+            <div className="w-full h-[260px] sm:h-[300px] rounded-[24px] overflow-hidden relative bg-gradient-to-b from-[#433075]/25 to-[#0D0D0D] border border-[#A58CF4]/25 flex items-center justify-center mb-6">
+              <div className="absolute w-[220px] h-[220px] rounded-full bg-gradient-to-tr from-[#433075]/40 via-[#A58CF4]/25 to-transparent blur-2xl pointer-events-none" />
+              
+              <img
+                src="/images/neural_avatar_cutout.png"
+                alt="Neural Presence Visual"
+                className="w-full max-w-[220px] h-auto object-contain filter contrast-[1.05] drop-shadow-[0_15px_30px_rgba(67,48,117,0.5)] transition-transform duration-500 hover:scale-105"
+              />
+
+              {/* Animated Soundwave Bars */}
+              <div className="absolute bottom-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0D0D0D]/80 backdrop-blur-md border border-[#A58CF4]/25">
+                <Radio size={13} className="text-[#A58CF4] animate-pulse" />
+                <div className="flex items-center gap-1 h-3">
+                  <span className="w-1 bg-[#A58CF4] h-2 animate-bounce rounded-full" />
+                  <span className="w-1 bg-[#A58CF4] h-3 animate-bounce [animation-delay:0.15s] rounded-full" />
+                  <span className="w-1 bg-[#A58CF4] h-1.5 animate-bounce [animation-delay:0.3s] rounded-full" />
+                  <span className="w-1 bg-[#A58CF4] h-3.5 animate-bounce [animation-delay:0.45s] rounded-full" />
+                </div>
+                <span className="text-[10.5px] text-[#FAFAFA] font-medium ml-1">
+                  {activeAvatar ? activeAvatar.name : "Companion"} Listening
+                </span>
+              </div>
+            </div>
+
+            {/* Active Companion Name & Dialogue */}
+            <h3 className="text-[20px] font-medium text-[#FAFAFA] mb-1">
+              {activeAvatar?.name}
+            </h3>
+            <p className="text-[12px] text-[rgba(250,250,250,0.7)] max-w-[420px] mb-6">
+              Continuous live reflection session. Speak naturally into your microphone or reflect together.
+            </p>
+
+            {/* Call Action Controls */}
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setIsMuted(!isMuted)}
+                className={`p-3 rounded-full border transition-all cursor-pointer ${
+                  isMuted
+                    ? "bg-[#433075] text-[#FAFAFA] border-[#A58CF4]"
+                    : "bg-[#0D0D0D] text-[#A58CF4] border-[#A58CF4]/30 hover:border-[#A58CF4]"
+                }`}
+                title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
+              >
+                {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowLiveCallModal(false)}
+                className="px-6 py-3 rounded-full bg-[#433075] hover:bg-[#A58CF4] hover:text-[#0D0D0D] text-[#FAFAFA] border border-[#A58CF4]/40 font-medium text-[13px] flex items-center gap-2 transition-all cursor-pointer shadow-lg"
+              >
+                <PhoneOff size={16} /> End Session
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Add Memory Modal */}
       {showMemoryModal && (
@@ -414,7 +671,7 @@ function ChatContent() {
               </div>
               <button
                 onClick={() => setShowMemoryModal(false)}
-                className="text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA] text-[18px] transition-colors"
+                className="text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA] text-[18px] transition-colors cursor-pointer"
               >
                 ✕
               </button>
@@ -464,7 +721,7 @@ function ChatContent() {
                 <button
                   type="submit"
                   disabled={isSavingMemory || (!newMemoryText.trim() && !uploadFile)}
-                  className="btn-pill-primary text-[11px] px-4 py-2 disabled:opacity-40"
+                  className="btn-pill-primary text-[11px] px-4 py-2 disabled:opacity-40 cursor-pointer"
                 >
                   {isSavingMemory ? "Preserving..." : "Save Memory"}
                 </button>

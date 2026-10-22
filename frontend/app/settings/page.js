@@ -200,24 +200,28 @@ export default function SettingsPage() {
                         Preservation Tier
                       </h3>
                       <p className="text-[12.5px] text-[rgba(250,250,250,0.65)] mt-0.5">
-                        Your active memorial sanctuary package.
+                        Active testing phase with all restrictions unlocked.
                       </p>
                     </div>
                     <span className="px-3 py-1 rounded-full bg-[#433075] text-[#FAFAFA] text-[11.5px] font-medium border border-[#A58CF4]/30">
-                      Standard Sanctuary
+                      Testing Mode • All Features Unlimited
                     </span>
                   </div>
 
                   <div className="p-4 rounded-xl bg-[#433075]/20 border border-[#A58CF4]/20 space-y-3">
                     <div className="flex justify-between text-[13px]">
                       <span className="text-[rgba(250,250,250,0.7)]">Active Companions</span>
-                      <span className="font-semibold text-[#FAFAFA]">{avatars.length} / 5</span>
+                      <span className="font-semibold text-[#FAFAFA]">{avatars.length} (Unlimited)</span>
                     </div>
                     <div className="flex justify-between text-[13px]">
                       <span className="text-[rgba(250,250,250,0.7)]">Memory Vectors Preserved</span>
                       <span className="font-semibold text-[#FAFAFA]">
-                        {avatars.reduce((acc, a) => acc + (a.memory_count || 0), 0)} memories
+                        {avatars.reduce((acc, a) => acc + (a.memory_count || 0), 0)} memories (Unlimited)
                       </span>
+                    </div>
+                    <div className="flex justify-between text-[13px]">
+                      <span className="text-[rgba(250,250,250,0.7)]">Chat, Voice & Video</span>
+                      <span className="font-semibold text-[#A58CF4]">Unlimited Access</span>
                     </div>
                     <div className="flex justify-between text-[13px]">
                       <span className="text-[rgba(250,250,250,0.7)]">Anti-Hallucination Guardrails</span>

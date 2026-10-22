@@ -33,19 +33,8 @@ class MemoryService:
         self.db = get_supabase_admin_client()
 
     def _check_memory_limit(self, avatar_id: str, count_to_add: int = 1):
-        """Ensure avatar memory count does not exceed free tier limit."""
-        resp = self.db.table("avatars").select("memory_count, owner_id").eq("id", avatar_id).execute()
-        if not resp.data:
-            raise AvatarNotFoundError(avatar_id)
-
-        current_count = resp.data[0].get("memory_count", 0)
-        # Check plan
-        owner_id = resp.data[0].get("owner_id")
-        user_resp = self.db.table("users").select("plan").eq("id", owner_id).execute()
-        user_plan = user_resp.data[0].get("plan", "free") if user_resp.data else "free"
-
-        if user_plan == "free" and (current_count + count_to_add) > FREE_TIER_MEMORY_LIMIT:
-            raise MemoryLimitError(limit=FREE_TIER_MEMORY_LIMIT)
+        """Testing phase: Uncapped and unlimited memory storage."""
+        pass
 
     def ingest_single_memory(
         self,
