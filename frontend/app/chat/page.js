@@ -25,6 +25,7 @@ import {
   AlertCircle,
   Loader2,
   Square,
+  Trash2,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -74,6 +75,18 @@ function ChatContent() {
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [memorySuccessMsg, setMemorySuccessMsg] = useState("");
   const [memoryErrorMsg, setMemoryErrorMsg] = useState("");
+
+  // Modal for deleting an avatar / companion
+  const [showDeleteAvatarModal, setShowDeleteAvatarModal] = useState(false);
+  const [avatarToDelete, setAvatarToDelete] = useState(null);
+  const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
+
+  // Modal for viewing & managing particular stories / memories
+  const [showStoriesModal, setShowStoriesModal] = useState(false);
+  const [avatarMemories, setAvatarMemories] = useState([]);
+  const [loadingMemories, setLoadingMemories] = useState(false);
+  const [deletingMemoryId, setDeletingMemoryId] = useState(null);
+  const [storiesToastMsg, setStoriesToastMsg] = useState("");
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -746,6 +759,76 @@ function ChatContent() {
     }
   };
 
+  // Open Stories & Particular Memories Manager Modal
+  const openStoriesModal = async (avatar = activeAvatar) => {
+    if (!avatar) return;
+    setShowStoriesModal(true);
+    setLoadingMemories(true);
+    setStoriesToastMsg("");
+    try {
+      const list = await api.getMemories(avatar.id);
+      setAvatarMemories(list || []);
+    } catch (err) {
+      console.error("Failed to load companion memories:", err);
+      setAvatarMemories([]);
+    } finally {
+      setLoadingMemories(false);
+    }
+  };
+
+  // Delete an individual memory / story
+  const handleDeleteMemory = async (memoryId) => {
+    setDeletingMemoryId(memoryId);
+    setStoriesToastMsg("");
+    try {
+      await api.deleteMemory(memoryId);
+      setAvatarMemories((prev) => prev.filter((m) => m.id !== memoryId));
+      if (activeAvatar) {
+        const updatedCount = Math.max(0, (activeAvatar.memory_count || 1) - 1);
+        setActiveAvatar((prev) => ({ ...prev, memory_count: updatedCount }));
+        setAvatars((prev) =>
+          prev.map((a) => (a.id === activeAvatar.id ? { ...a, memory_count: updatedCount } : a))
+        );
+      }
+      setStoriesToastMsg("Memory removed from archive.");
+      setTimeout(() => setStoriesToastMsg(""), 2500);
+    } catch (err) {
+      console.error("Failed to delete memory:", err);
+      alert(err.message || "Failed to remove memory.");
+    } finally {
+      setDeletingMemoryId(null);
+    }
+  };
+
+  // Delete an entire companion archive (Kabir, Anurag, etc.)
+  const handleConfirmDeleteAvatar = async () => {
+    if (!avatarToDelete) return;
+    setIsDeletingAvatar(true);
+    try {
+      await api.deleteAvatar(avatarToDelete.id);
+      const remaining = avatars.filter((a) => a.id !== avatarToDelete.id);
+      setAvatars(remaining);
+
+      // If active avatar was deleted, switch to first available or null
+      if (activeAvatar?.id === avatarToDelete.id) {
+        if (remaining.length > 0) {
+          setActiveAvatar(remaining[0]);
+        } else {
+          setActiveAvatar(null);
+          setMessages([]);
+        }
+      }
+
+      setShowDeleteAvatarModal(false);
+      setAvatarToDelete(null);
+    } catch (err) {
+      console.error("Failed to delete companion:", err);
+      alert(err.message || "Failed to delete companion archive.");
+    } finally {
+      setIsDeletingAvatar(false);
+    }
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -814,7 +897,7 @@ function ChatContent() {
                   <div
                     key={av.id}
                     onClick={() => setActiveAvatar(av)}
-                    className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all ${
+                    className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all group relative ${
                       activeAvatar?.id === av.id
                         ? "bg-[#433075] text-[#FAFAFA] shadow-xs border border-[#A58CF4]/35"
                         : "hover:bg-[#433075]/20 text-[rgba(250,250,250,0.7)] border border-transparent"
@@ -831,6 +914,20 @@ function ChatContent() {
                         {av.relationship} · {av.memory_count || 0} memories
                       </p>
                     </div>
+
+                    {/* Delete Companion Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAvatarToDelete(av);
+                        setShowDeleteAvatarModal(true);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-[rgba(250,250,250,0.45)] hover:text-red-400 hover:bg-[#0D0D0D]/60 transition-all cursor-pointer"
+                      title={`Remove ${av.name}'s archive`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                 ))
               )}
@@ -877,33 +974,52 @@ function ChatContent() {
                   </div>
                 </div>
 
-                {/* Header Actions: Live Voice, Live Video, Add Memory */}
-                <div className="flex items-center gap-2">
+                {/* Header Actions: Live Voice, Live Video, Stories Archive, Add Memory, Delete Companion */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     onClick={() => {
                       setCallMode("voice");
                       setShowLiveCallModal(true);
                     }}
-                    className="btn-pill-ghost text-[11px] px-3 py-1 flex items-center gap-1.5 cursor-pointer"
+                    className="btn-pill-ghost text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1.5 cursor-pointer"
                     title="Start Unlimited Live Voice Session"
                   >
-                    <Phone size={12} className="text-[#A58CF4]" /> Live Voice
+                    <Phone size={12} className="text-[#A58CF4]" /> <span className="hidden sm:inline">Live</span> Voice
                   </button>
                   <button
                     onClick={() => {
                       setCallMode("video");
                       setShowLiveCallModal(true);
                     }}
-                    className="btn-pill-primary text-[11px] px-3 py-1 flex items-center gap-1.5 cursor-pointer"
+                    className="btn-pill-primary text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1.5 cursor-pointer"
                     title="Start Unlimited Live Video Presence"
                   >
-                    <Video size={12} className="text-[#FAFAFA]" /> Live Video
+                    <Video size={12} className="text-[#FAFAFA]" /> <span className="hidden sm:inline">Live</span> Video
+                  </button>
+                  <button
+                    onClick={() => openStoriesModal()}
+                    className="btn-pill-ghost text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1 cursor-pointer"
+                    title="View, search and manage preserved memories"
+                  >
+                    <BookOpen size={12} className="text-[#A58CF4]" /> Stories ({activeAvatar.memory_count || 0})
                   </button>
                   <button
                     onClick={() => setShowMemoryModal(true)}
-                    className="btn-pill-ghost text-[11px] px-3 py-1 flex items-center gap-1 cursor-pointer"
+                    className="btn-pill-ghost text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1 cursor-pointer"
+                    title="Add a new story or memory"
                   >
-                    <Plus size={13} /> Add Story
+                    <Plus size={13} /> Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAvatarToDelete(activeAvatar);
+                      setShowDeleteAvatarModal(true);
+                    }}
+                    className="p-1.5 rounded-full text-[rgba(250,250,250,0.5)] hover:text-red-400 hover:bg-red-950/30 border border-transparent hover:border-red-500/20 transition-all cursor-pointer"
+                    title={`Delete ${activeAvatar.name}'s companion archive`}
+                  >
+                    <Trash2 size={13} />
                   </button>
                 </div>
               </div>
@@ -1356,6 +1472,192 @@ function ChatContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Companion Confirmation Modal (Kabir, Anurag, etc.) */}
+      {showDeleteAvatarModal && avatarToDelete && (
+        <div className="modal-backdrop">
+          <div className="w-full max-w-[460px] rounded-[28px] bg-[#0D0D0D] p-6 sm:p-7 border border-[#A58CF4]/30 shadow-[0_24px_80px_rgba(13,13,13,0.95)] flex flex-col relative text-left">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#A58CF4]/20">
+              <div className="flex items-center gap-2.5 text-red-400">
+                <AlertCircle size={20} />
+                <h3 className="font-medium text-[16px] text-[#FAFAFA]">
+                  Remove Companion Archive
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDeleteAvatarModal(false);
+                  setAvatarToDelete(null);
+                }}
+                className="text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA] text-[18px] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <p className="text-[13px] text-[#FAFAFA] leading-relaxed">
+                Are you sure you want to remove <strong>{avatarToDelete.name}</strong> ({avatarToDelete.relationship})?
+              </p>
+              <div className="p-3.5 rounded-xl bg-red-950/20 border border-red-500/30 text-[12px] text-[rgba(250,250,250,0.75)] space-y-1.5">
+                <p>• All <strong>{avatarToDelete.memory_count || 0}</strong> preserved memories and stories will be deleted.</p>
+                <p>• Vector search points and neural voice persona will be purged.</p>
+                <p>• Conversation history will be permanently erased.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteAvatarModal(false);
+                  setAvatarToDelete(null);
+                }}
+                disabled={isDeletingAvatar}
+                className="btn-pill-ghost text-[12px] px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteAvatar}
+                disabled={isDeletingAvatar}
+                className="px-5 py-2 rounded-full bg-red-600 hover:bg-red-700 text-[#FAFAFA] text-[12px] font-medium flex items-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50 transition-all"
+              >
+                {isDeletingAvatar ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" /> Removing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} /> Remove Companion
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View & Manage Stories / Memories Modal */}
+      {showStoriesModal && activeAvatar && (
+        <div className="modal-backdrop">
+          <div className="w-full max-w-[640px] max-h-[85vh] rounded-[28px] bg-[#0D0D0D] p-6 sm:p-7 border border-[#A58CF4]/30 shadow-[0_24px_80px_rgba(13,13,13,0.95)] flex flex-col relative text-left">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#A58CF4]/20 shrink-0">
+              <div className="flex items-center gap-2">
+                <BookOpen size={18} className="text-[#A58CF4]" />
+                <div>
+                  <h3 className="font-medium text-[16px] text-[#FAFAFA]">
+                    {activeAvatar.name}'s Preserved Stories
+                  </h3>
+                  <p className="text-[11px] text-[rgba(250,250,250,0.6)]">
+                    {avatarMemories.length} stories grounded in vector vault
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setShowStoriesModal(false);
+                    setShowMemoryModal(true);
+                  }}
+                  className="btn-pill-primary text-[11px] px-3 py-1 flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus size={12} /> Add Story
+                </button>
+                <button
+                  onClick={() => setShowStoriesModal(false)}
+                  className="text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA] text-[18px] cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {storiesToastMsg && (
+              <div className="mb-3 p-2.5 rounded-xl bg-[#433075]/40 border border-[#A58CF4] text-[#FAFAFA] text-[12px] flex items-center gap-2 shrink-0">
+                <CheckCircle2 size={15} className="text-[#A58CF4]" />
+                <span>{storiesToastMsg}</span>
+              </div>
+            )}
+
+            {/* Stories List */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 py-1">
+              {loadingMemories ? (
+                <div className="py-12 text-center text-[13px] text-[rgba(250,250,250,0.7)] flex flex-col items-center gap-2">
+                  <Loader2 size={18} className="animate-spin text-[#A58CF4]" />
+                  <span>Loading preserved stories from memory vault...</span>
+                </div>
+              ) : avatarMemories.length === 0 ? (
+                <div className="py-12 text-center text-[rgba(250,250,250,0.65)] space-y-3">
+                  <p className="text-[13px]">No stories preserved in this archive yet.</p>
+                  <button
+                    onClick={() => {
+                      setShowStoriesModal(false);
+                      setShowMemoryModal(true);
+                    }}
+                    className="btn-pill-primary text-[11px] px-4 py-2"
+                  >
+                    Add First Memory
+                  </button>
+                </div>
+              ) : (
+                avatarMemories.map((mem) => (
+                  <div
+                    key={mem.id}
+                    className="p-3.5 rounded-2xl bg-[#433075]/15 border border-[#A58CF4]/20 hover:border-[#A58CF4]/35 transition-all flex flex-col gap-2 group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[12.5px] text-[#FAFAFA] leading-relaxed whitespace-pre-wrap flex-1">
+                        {mem.content}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMemory(mem.id)}
+                        disabled={deletingMemoryId === mem.id}
+                        className="p-1.5 rounded-lg text-[rgba(250,250,250,0.4)] hover:text-red-400 hover:bg-red-950/30 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                        title="Remove this memory"
+                      >
+                        {deletingMemoryId === mem.id ? (
+                          <Loader2 size={13} className="animate-spin text-red-400" />
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1 border-t border-[#A58CF4]/10 text-[10.5px] text-[rgba(250,250,250,0.55)]">
+                      <span className="px-2 py-0.5 rounded-md bg-[#433075]/30 text-[#A58CF4] border border-[#A58CF4]/20 uppercase tracking-wider text-[9.5px]">
+                        {mem.source_type || "manual"}
+                      </span>
+                      {mem.memory_date && <span>• {new Date(mem.memory_date).toLocaleDateString()}</span>}
+                      {mem.created_at && (
+                        <span className="ml-auto">
+                          Added {new Date(mem.created_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-[#A58CF4]/15 flex items-center justify-between text-[11px] text-[rgba(250,250,250,0.6)] shrink-0 mt-2">
+              <span>Grounded in Qdrant Vector Vault</span>
+              <button
+                onClick={() => setShowStoriesModal(false)}
+                className="btn-pill-ghost text-[11px] px-3 py-1"
+              >
+                Close
+              </button>
+            </div>
+
           </div>
         </div>
       )}

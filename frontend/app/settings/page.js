@@ -43,6 +43,26 @@ export default function SettingsPage() {
 
   // Revoke avatar state
   const [revokingId, setRevokingId] = useState(null);
+  const [deletingAvatarId, setDeletingAvatarId] = useState(null);
+
+  const handleDeleteAvatar = async (avatar) => {
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete ${avatar.name}'s companion archive? This will remove all ${avatar.memory_count || 0} memories, vector search embeddings, and chat history.`
+      )
+    ) {
+      return;
+    }
+    setDeletingAvatarId(avatar.id);
+    try {
+      await api.deleteAvatar(avatar.id);
+      setAvatars((prev) => prev.filter((a) => a.id !== avatar.id));
+    } catch (err) {
+      alert(err.message || "Could not delete companion archive.");
+    } finally {
+      setDeletingAvatarId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -299,7 +319,7 @@ export default function SettingsPage() {
                         <strong>Ledger:</strong> Append-only attestation recorded
                       </div>
 
-                      <div className="flex items-center justify-end gap-3 pt-1">
+                      <div className="flex items-center justify-end gap-2.5 pt-1 flex-wrap">
                         <Link
                           href={`/chat?avatarId=${avatar.id}`}
                           className="btn-pill-primary text-[12px] px-4 py-1.5 no-underline"
@@ -309,12 +329,20 @@ export default function SettingsPage() {
                         {avatar.is_active && (
                           <button
                             onClick={() => handleRevokeConsent(avatar.id)}
-                            disabled={revokingId === avatar.id}
+                            disabled={revokingId === avatar.id || deletingAvatarId === avatar.id}
                             className="btn-pill-ghost text-[11px] px-3 py-1.5 text-[rgba(250,250,250,0.7)] hover:text-[#FAFAFA]"
                           >
                             {revokingId === avatar.id ? "Revoking..." : "Revoke Consent"}
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDeleteAvatar(avatar)}
+                          disabled={deletingAvatarId === avatar.id || revokingId === avatar.id}
+                          className="btn-pill-ghost text-[11px] px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 border border-red-500/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                        >
+                          <Trash2 size={12} />
+                          {deletingAvatarId === avatar.id ? "Deleting..." : "Delete Companion"}
+                        </button>
                       </div>
                     </div>
                   ))
