@@ -77,34 +77,24 @@ function NeuralAvatarModel() {
     });
   }, [scene, texture]);
 
-  // 60 FPS animations: idle breathing and smooth pointer tracking around a graceful 3/4 poise
+  // 60 FPS animation: gentle idle breathing while preserving exact fixed beauty angle
   useFrame((state) => {
     if (!groupRef.current) return;
     const t = state.clock.getElapsedTime();
 
-    // 1. Idle Breathing: 3-second gentle sine wave oscillation
+    // Idle Breathing: 3-second gentle sine wave oscillation
     const breath = 1.0 + 0.012 * Math.sin(t * (2 * Math.PI / 3));
-    groupRef.current.scale.set(0.92, 0.92 * breath, 0.92);
+    groupRef.current.scale.set(1.22, 1.22 * breath, 1.22);
 
-    // 2. Smooth Cursor Tracking around natural 3/4 beauty pose (+23° turn showcasing neural prism)
-    const baseRotationY = 0.40;
-    const targetY = baseRotationY + state.pointer.x * (Math.PI / 16);
-    const targetX = -0.03 - state.pointer.y * (Math.PI / 22);
-
-    groupRef.current.rotation.y = THREE.MathUtils.lerp(
-      groupRef.current.rotation.y,
-      targetY,
-      0.08
-    );
-    groupRef.current.rotation.x = THREE.MathUtils.lerp(
-      groupRef.current.rotation.x,
-      targetX,
-      0.08
-    );
+    // Fixed at the exact three-quarter poise shown in the reference image
+    // (~36° horizontal turn showcasing the luminous rainbow temple + slight upward chin tilt)
+    groupRef.current.rotation.y = 0.64;
+    groupRef.current.rotation.x = -0.06;
+    groupRef.current.rotation.z = 0.02;
   });
 
   return (
-    <group ref={groupRef} position={[-0.03, -0.04, 0]} scale={0.92}>
+    <group ref={groupRef} position={[-0.01, -0.11, 0]} scale={1.22}>
       <primitive object={scene} />
     </group>
   );
@@ -156,26 +146,26 @@ export default function AvatarCanvas() {
 
   return (
     <div
-      className="w-full max-w-[460px] h-[480px] sm:h-[520px] md:h-[550px] relative flex items-center justify-center select-none"
+      className="w-full max-w-[440px] sm:max-w-[480px] md:max-w-[500px] h-[520px] sm:h-[560px] md:h-[600px] relative flex items-center justify-center select-none"
       style={{
-        maskImage: "linear-gradient(to bottom, black 72%, transparent 97%)",
-        WebkitMaskImage: "linear-gradient(to bottom, black 72%, transparent 97%)",
+        maskImage: "linear-gradient(to bottom, black 76%, transparent 98%)",
+        WebkitMaskImage: "linear-gradient(to bottom, black 76%, transparent 98%)",
       }}
     >
       {/* Ambient Multi-Layer Glow Aura in Deep Purple (#433075) & Lavender (#A58CF4) */}
       <div
-        className="absolute w-[380px] h-[380px] sm:w-[460px] sm:h-[460px] rounded-full pointer-events-none -z-10 blur-3xl opacity-80"
+        className="absolute w-[420px] h-[420px] sm:w-[480px] sm:h-[480px] rounded-full pointer-events-none -z-10 blur-3xl opacity-80"
         style={{
           background:
-            "radial-gradient(circle, rgba(67, 48, 117, 0.8) 0%, rgba(165, 140, 244, 0.3) 45%, transparent 70%)",
+            "radial-gradient(circle, rgba(67, 48, 117, 0.85) 0%, rgba(165, 140, 244, 0.32) 45%, transparent 70%)",
         }}
       />
 
       {/* Subtle Orbital Halo Ring elevated behind Head */}
       <div
-        className="absolute w-[300px] h-[300px] sm:w-[350px] sm:h-[350px] rounded-full pointer-events-none -z-10 border border-[#A58CF4]/30"
+        className="absolute w-[320px] h-[320px] sm:w-[380px] sm:h-[380px] rounded-full pointer-events-none -z-10 border border-[#A58CF4]/30"
         style={{
-          transform: "translateY(-35px) rotateX(68deg) translateZ(-20px)",
+          transform: "translateY(-40px) rotateX(68deg) translateZ(-20px)",
           boxShadow: "0 0 50px rgba(165, 140, 244, 0.25)",
         }}
       />
@@ -184,9 +174,9 @@ export default function AvatarCanvas() {
         <Canvas
           dpr={[1, 2]}
           gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
-          camera={{ position: [0, 0.04, 2.5], fov: 32 }}
+          camera={{ position: [0, 0.02, 2.5], fov: 33 }}
           frameloop={isTabVisible ? "always" : "demand"}
-          className="w-full h-full cursor-grab active:cursor-grabbing"
+          className="w-full h-full select-none"
         >
           {/* Base ambient tone so shadowed face areas stay deep ethereal purple */}
           <ambientLight intensity={0.9} color="#352468" />
@@ -212,19 +202,11 @@ export default function AvatarCanvas() {
 
           {/* Contact Shadows grounding the bust */}
           <ContactShadows
-            position={[0, -0.65, 0]}
+            position={[0, -0.75, 0]}
             opacity={0.35}
             blur={2.0}
             scale={5}
             far={2}
-          />
-
-          {/* Horizontal drag-rotation only */}
-          <OrbitControls
-            enableZoom={false}
-            enablePan={false}
-            minPolarAngle={Math.PI / 2.2}
-            maxPolarAngle={Math.PI / 2.2}
           />
         </Canvas>
       </WebGLErrorBoundary>
