@@ -2,7 +2,7 @@
 
 import React, { Suspense, useEffect, useLayoutEffect, useRef, useState, Component } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useGLTF, OrbitControls, Environment, ContactShadows } from "@react-three/drei";
+import { useGLTF, useTexture, OrbitControls, Environment, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 import PlaceholderAvatar from "./PlaceholderAvatar";
 
@@ -42,30 +42,32 @@ class WebGLErrorBoundary extends Component {
  */
 function NeuralAvatarModel() {
   const { scene } = useGLTF("/models/avatar.glb");
+  const texture = useTexture("/models/avatar_enhanced_texture.png");
   const groupRef = useRef();
 
   // Fix missing normals on glTF primitive and upgrade to Glossy Iridescent Obsidian material
   useLayoutEffect(() => {
-    if (!scene) return;
+    if (!scene || !texture) return;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.flipY = false;
+
     scene.traverse((child) => {
       if (child.isMesh) {
         // Critical: Compute vertex normals for specular & clearcoat reflection
         child.geometry.computeVertexNormals();
 
-        // Preserve baked texture from glTF model
-        const bakedTexture = child.material?.map || null;
-
-        // Upgrade material to Glossy Iridescent Obsidian with vibrant emissive pop
+        // Upgrade material to Glossy Ethereal Iridescent Obsidian with vibrant neural glow
         child.material = new THREE.MeshPhysicalMaterial({
-          map: bakedTexture,
-          emissiveMap: bakedTexture,
+          map: texture,
+          color: new THREE.Color("#FAFAFA"),
+          emissiveMap: texture,
           emissive: new THREE.Color("#ffffff"),
-          emissiveIntensity: 0.35,
-          roughness: 0.08,
-          metalness: 0.15,
-          clearcoat: 1.0,
-          clearcoatRoughness: 0.05,
-          iridescence: 0.85,
+          emissiveIntensity: 0.65,
+          roughness: 0.16,
+          metalness: 0.1,
+          clearcoat: 0.9,
+          clearcoatRoughness: 0.08,
+          iridescence: 0.8,
           iridescenceIOR: 1.5,
         });
 
@@ -73,22 +75,21 @@ function NeuralAvatarModel() {
         child.receiveShadow = true;
       }
     });
-  }, [scene]);
+  }, [scene, texture]);
 
-  // 60 FPS animations: idle breathing and smooth pointer tracking
+  // 60 FPS animations: idle breathing and smooth pointer tracking around a graceful 3/4 poise
   useFrame((state) => {
     if (!groupRef.current) return;
     const t = state.clock.getElapsedTime();
 
     // 1. Idle Breathing: 3-second gentle sine wave oscillation
-    const breath = 1.0 + 0.015 * Math.sin(t * (2 * Math.PI / 3));
-    groupRef.current.scale.set(2.2, 2.2 * breath, 2.2);
+    const breath = 1.0 + 0.012 * Math.sin(t * (2 * Math.PI / 3));
+    groupRef.current.scale.set(0.92, 0.92 * breath, 0.92);
 
-    // 2. Smooth Cursor Tracking: Lerp rotation toward pointer position
-    // Horizontal tracking: max ±15° (Math.PI / 12)
-    const targetY = state.pointer.x * (Math.PI / 12);
-    // Vertical tracking: max ±10° (Math.PI / 18)
-    const targetX = -state.pointer.y * (Math.PI / 18);
+    // 2. Smooth Cursor Tracking around natural 3/4 beauty pose (+23° turn showcasing neural prism)
+    const baseRotationY = 0.40;
+    const targetY = baseRotationY + state.pointer.x * (Math.PI / 16);
+    const targetX = -0.03 - state.pointer.y * (Math.PI / 22);
 
     groupRef.current.rotation.y = THREE.MathUtils.lerp(
       groupRef.current.rotation.y,
@@ -103,14 +104,15 @@ function NeuralAvatarModel() {
   });
 
   return (
-    <group ref={groupRef} position={[0, -0.1, 0]} scale={2.2}>
+    <group ref={groupRef} position={[-0.03, -0.04, 0]} scale={0.92}>
       <primitive object={scene} />
     </group>
   );
 }
 
-// Preload the model binary for instant availability
+// Preload the model binary and enhanced neural texture for instant availability
 useGLTF.preload("/models/avatar.glb");
+useTexture.preload("/models/avatar_enhanced_texture.png");
 
 export default function AvatarCanvas() {
   const [isTabVisible, setIsTabVisible] = useState(true);
@@ -153,13 +155,28 @@ export default function AvatarCanvas() {
   }
 
   return (
-    <div className="w-full h-[460px] sm:h-[520px] md:h-[560px] relative flex items-center justify-center select-none">
-      {/* Multi-layer Ambient Backlight Glow matching deep purple & lavender palette */}
+    <div
+      className="w-full max-w-[460px] h-[480px] sm:h-[520px] md:h-[550px] relative flex items-center justify-center select-none"
+      style={{
+        maskImage: "linear-gradient(to bottom, black 72%, transparent 97%)",
+        WebkitMaskImage: "linear-gradient(to bottom, black 72%, transparent 97%)",
+      }}
+    >
+      {/* Ambient Multi-Layer Glow Aura in Deep Purple (#433075) & Lavender (#A58CF4) */}
       <div
-        className="absolute w-[360px] h-[360px] sm:w-[460px] sm:h-[460px] rounded-full pointer-events-none -z-10 blur-3xl opacity-60"
+        className="absolute w-[380px] h-[380px] sm:w-[460px] sm:h-[460px] rounded-full pointer-events-none -z-10 blur-3xl opacity-80"
         style={{
           background:
-            "radial-gradient(circle, rgba(67, 48, 117, 0.75) 0%, rgba(165, 140, 244, 0.25) 50%, transparent 70%)",
+            "radial-gradient(circle, rgba(67, 48, 117, 0.8) 0%, rgba(165, 140, 244, 0.3) 45%, transparent 70%)",
+        }}
+      />
+
+      {/* Subtle Orbital Halo Ring elevated behind Head */}
+      <div
+        className="absolute w-[300px] h-[300px] sm:w-[350px] sm:h-[350px] rounded-full pointer-events-none -z-10 border border-[#A58CF4]/30"
+        style={{
+          transform: "translateY(-35px) rotateX(68deg) translateZ(-20px)",
+          boxShadow: "0 0 50px rgba(165, 140, 244, 0.25)",
         }}
       />
 
@@ -167,20 +184,23 @@ export default function AvatarCanvas() {
         <Canvas
           dpr={[1, 2]}
           gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
-          camera={{ position: [0, 0.1, 2.4], fov: 35 }}
+          camera={{ position: [0, 0.04, 2.5], fov: 32 }}
           frameloop={isTabVisible ? "always" : "demand"}
           className="w-full h-full cursor-grab active:cursor-grabbing"
         >
-          {/* 3-Point Studio Lighting */}
-          <directionalLight position={[3, 4, 3]} intensity={1.8} color="#FAFAFA" />
-          <directionalLight position={[-3, 2, -1]} intensity={0.9} color="#433075" />
-          <directionalLight position={[0, 4, -4]} intensity={2.2} color="#A58CF4" />
+          {/* Base ambient tone so shadowed face areas stay deep ethereal purple */}
+          <ambientLight intensity={0.9} color="#352468" />
 
-          {/* Specular PointLight Rig for clearcoat highlights */}
-          <pointLight position={[-1.8, 1.2, 1.5]} color="#00d9ff" intensity={1.5} distance={6} />
-          <pointLight position={[1.8, 1.2, 1.5]} color="#ff007f" intensity={1.5} distance={6} />
-          <pointLight position={[0, -1.5, 1.2]} color="#f5c542" intensity={1.2} distance={5} />
-          <pointLight position={[0, 2.5, -1.0]} color="#8b5cf6" intensity={1.8} distance={6} />
+          {/* 3-Point Studio Lighting */}
+          <directionalLight position={[2.5, 3.5, 2]} intensity={1.1} color="#f5f0ff" />
+          <directionalLight position={[-2.5, 2, 1.5]} intensity={1.2} color="#8b5cf6" />
+          <directionalLight position={[0, 3, -3]} intensity={1.8} color="#00d9ff" />
+
+          {/* Specular PointLight Rig for clearcoat iridescent highlights */}
+          <pointLight position={[-1.2, 0.6, 1.0]} color="#00d9ff" intensity={1.4} distance={4} />
+          <pointLight position={[1.2, 0.6, 1.0]} color="#ec4899" intensity={1.4} distance={4} />
+          <pointLight position={[0, -1.2, 1.0]} color="#a58cf4" intensity={0.8} distance={3} />
+          <pointLight position={[0, 2.2, -1.0]} color="#c084fc" intensity={1.8} distance={5} />
 
           {/* Studio Environment & Reflections */}
           <Environment preset="studio" />
@@ -192,11 +212,11 @@ export default function AvatarCanvas() {
 
           {/* Contact Shadows grounding the bust */}
           <ContactShadows
-            position={[0, -1.2, 0]}
-            opacity={0.45}
-            blur={2.5}
-            scale={10}
-            far={4}
+            position={[0, -0.65, 0]}
+            opacity={0.35}
+            blur={2.0}
+            scale={5}
+            far={2}
           />
 
           {/* Horizontal drag-rotation only */}
