@@ -533,7 +533,7 @@ export default function OnboardingPage() {
                   href={createdAvatarId ? `/chat?avatarId=${createdAvatarId}` : "/chat"}
                   className="btn-pill-primary px-8 py-3 text-[13px] no-underline inline-flex items-center gap-2 shadow-lg"
                 >
-                  <span>Step into Sanctuary with {formData.name || "Companion"}</span>
+                  <span>Start Chat with {formData.name || "Companion"}</span>
                   <ArrowRight size={14} />
                 </Link>
               )}

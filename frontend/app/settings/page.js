@@ -141,14 +141,14 @@ export default function SettingsPage() {
               Settings & Privacy
             </h1>
             <p className="text-[13px] text-[rgba(250,250,250,0.65)] mt-1">
-              Manage your sanctuary configurations, companion profiles, and exported memory archives.
+              Manage your chat configurations, companion profiles, and exported memory archives.
             </p>
           </div>
           <Link
             href="/chat"
             className="btn-pill-ghost text-[12px] px-4 py-2 flex items-center gap-1.5 no-underline"
           >
-            <ArrowLeft size={14} /> Back to Sanctuary
+            <ArrowLeft size={14} /> Back to Chat
           </Link>
         </div>
 

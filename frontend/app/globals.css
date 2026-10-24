@@ -433,3 +433,15 @@
   border-color: #A58CF4;
   box-shadow: 0 0 0 2px rgba(165, 140, 244, 0.25);
 }
+
+/* Hide scrollbar utility across Chrome, Safari, Edge, Firefox */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important;    /* Firefox */
+}

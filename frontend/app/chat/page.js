@@ -882,7 +882,7 @@ function ChatContent() {
               </Link>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 py-1">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 py-1 no-scrollbar">
               {loadingAvatars ? (
                 <p className="text-[12px] text-[rgba(250,250,250,0.7)] p-2">Loading companions...</p>
               ) : avatars.length === 0 ? (
@@ -937,7 +937,7 @@ function ChatContent() {
             <div className="pt-3 border-t border-[#A58CF4]/15 flex items-center justify-between text-[11px] text-[rgba(250,250,250,0.7)] shrink-0">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#A58CF4] shadow-[0_0_8px_#A58CF4] inline-block"></span>
-                Grounded Sanctuary • Uncapped
+                Grounded Chat • Uncapped
               </span>
               <Link href="/settings" className="hover:text-[#A58CF4] no-underline text-[rgba(250,250,250,0.7)] transition-colors">
                 <SettingsIcon size={14} />
@@ -1032,7 +1032,7 @@ function ChatContent() {
             {/* Message Feed - ONLY SCROLLING AREA (ChatGPT / Claude style) */}
             <div
               ref={messagesContainerRef}
-              className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-4"
+              className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-4 no-scrollbar"
             >
               {messages.map((m) => (
                 <div
@@ -1587,7 +1587,7 @@ function ChatContent() {
             )}
 
             {/* Stories List */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 py-1">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 py-1 no-scrollbar">
               {loadingMemories ? (
                 <div className="py-12 text-center text-[13px] text-[rgba(250,250,250,0.7)] flex flex-col items-center gap-2">
                   <Loader2 size={18} className="animate-spin text-[#A58CF4]" />
@@ -1667,7 +1667,7 @@ function ChatContent() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-[#FAFAFA]">Loading Sanctuary...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-[#FAFAFA]">Loading Chat...</div>}>
       <ChatContent />
     </Suspense>
   );

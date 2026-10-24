@@ -8,7 +8,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { label: "Sanctuary", href: "/chat" },
+    { label: "Chat", href: "/chat" },
     { label: "New Companion", href: "/onboarding" },
     { label: "How It Works", href: "/#features" },
     { label: "Use Cases", href: "/#use-cases" },
@@ -55,7 +55,7 @@ export function Navbar() {
             href="/chat"
             className="btn-pill-primary text-[12px] px-5 py-2 hover:shadow-md no-underline flex items-center gap-1.5"
           >
-            <span>Open Sanctuary</span>
+            <span>Chat</span>
           </Link>
         </div>
 
@@ -90,7 +90,7 @@ export function Navbar() {
               onClick={() => setMobileMenuOpen(false)}
               className="btn-pill-primary w-full text-center py-2.5 text-[13px] no-underline block"
             >
-              Open Sanctuary
+              Chat
             </Link>
           </div>
         </div>

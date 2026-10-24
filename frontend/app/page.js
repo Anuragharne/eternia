@@ -70,7 +70,7 @@ export default function HomePage() {
                   href="/chat"
                   className="btn-pill-primary text-[13px] px-7 py-3 hover:shadow-lg no-underline flex items-center gap-2 transition-transform hover:scale-[1.02]"
                 >
-                  <span>Open Sanctuary</span>
+                  <span>Open Chat</span>
                   <ArrowRight size={14} />
                 </Link>
                 <Link
@@ -118,7 +118,7 @@ export default function HomePage() {
               </h2>
               <div className="flex items-center gap-3">
                 <Link href="/chat" className="btn-pill-primary text-[12.5px] px-5 py-2.5 no-underline">
-                  Explore Sanctuary
+                  Explore Chat
                 </Link>
                 <Link href="/onboarding" className="text-[12.5px] font-medium text-[#A58CF4] hover:text-[#FAFAFA] px-3 py-2 no-underline transition-colors">
                   Create Companion &rarr;
@@ -363,7 +363,7 @@ export default function HomePage() {
 
             <div className="flex items-center gap-6 text-[11.5px] text-[rgba(250,250,250,0.7)]">
               <Link href="/chat" className="hover:text-[#FAFAFA] transition-colors no-underline">
-                Sanctuary
+                Chat
               </Link>
               <Link href="/onboarding" className="hover:text-[#FAFAFA] transition-colors no-underline">
                 New Companion
