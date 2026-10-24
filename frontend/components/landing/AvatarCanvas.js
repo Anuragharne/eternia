@@ -94,7 +94,7 @@ function NeuralAvatarModel() {
   });
 
   return (
-    <group ref={groupRef} position={[-0.01, -0.11, 0]} scale={1.22}>
+    <group ref={groupRef} position={[-0.01, 0.00, 0]} scale={1.22}>
       <primitive object={scene} />
     </group>
   );
@@ -165,7 +165,7 @@ export default function AvatarCanvas() {
       <div
         className="absolute w-[320px] h-[320px] sm:w-[380px] sm:h-[380px] rounded-full pointer-events-none -z-10 border border-[#A58CF4]/30"
         style={{
-          transform: "translateY(-40px) rotateX(68deg) translateZ(-20px)",
+          transform: "translateY(-62px) rotateX(68deg) translateZ(-20px)",
           boxShadow: "0 0 50px rgba(165, 140, 244, 0.25)",
         }}
       />
@@ -174,7 +174,7 @@ export default function AvatarCanvas() {
         <Canvas
           dpr={[1, 2]}
           gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
-          camera={{ position: [0, 0.02, 2.5], fov: 33 }}
+          camera={{ position: [0, 0.04, 2.5], fov: 33 }}
           frameloop={isTabVisible ? "always" : "demand"}
           className="w-full h-full select-none"
         >
@@ -202,7 +202,7 @@ export default function AvatarCanvas() {
 
           {/* Contact Shadows grounding the bust */}
           <ContactShadows
-            position={[0, -0.75, 0]}
+            position={[0, -0.65, 0]}
             opacity={0.35}
             blur={2.0}
             scale={5}

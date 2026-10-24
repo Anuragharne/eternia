@@ -68,7 +68,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 items-center gap-12 lg:gap-8">
             
             {/* Left Column: Headline, Subtitle, and Action Buttons */}
-            <div className="lg:col-span-7 flex flex-col items-start text-left">
+            <div className="lg:col-span-7 flex flex-col items-start text-left pt-2 lg:pt-4">
               
               {/* Big Headline */}
               <h1 className="text-left text-[42px] sm:text-[52px] md:text-[60px] font-medium text-[#FAFAFA] tracking-[-0.035em] leading-[1.08] mb-5">
