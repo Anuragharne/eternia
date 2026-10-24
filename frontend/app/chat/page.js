@@ -851,7 +851,7 @@ function ChatContent() {
   };
 
   return (
-    <div className="h-screen h-[100dvh] w-full overflow-hidden bg-[#0D0D0D] flex flex-col relative">
+    <div className="h-screen h-[100dvh] w-full overflow-hidden bg-[#0D0D0D] flex flex-col md:flex-row p-2 sm:p-3 md:p-3.5 gap-2.5 sm:gap-3 relative">
       {/* Ambient background glow (strictly in palette #433075 and #0D0D0D) */}
       <div
         className="absolute inset-0 pointer-events-none z-0"
@@ -861,11 +861,11 @@ function ChatContent() {
         }}
       />
 
-      {/* Floating Navbar */}
-      <Navbar />
+      {/* Left-docked Vertical Glass Navbar for Chat mode */}
+      <Navbar mode="vertical" />
 
       {/* Main Chat Viewport - Pinned ChatGPT/Claude Style Layout */}
-      <main className="w-full flex-1 min-h-0 flex flex-col pt-[72px] sm:pt-[76px] pb-2 sm:pb-3 px-2 sm:px-4 md:px-6 max-w-[1440px] mx-auto z-10">
+      <main className="flex-1 min-w-0 h-full flex flex-col z-10 overflow-hidden">
         <div className="w-full flex-1 min-h-0 rounded-[24px] sm:rounded-[28px] bg-[#0D0D0D] border border-[#A58CF4]/25 shadow-[0_16px_50px_rgba(13,13,13,0.7)] flex flex-col md:flex-row overflow-hidden">
           
           {/* Sidebar: Companions List */}
