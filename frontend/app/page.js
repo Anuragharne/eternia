@@ -2,9 +2,25 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ArrowRight, Sparkles, ShieldCheck, Heart, Volume2, Database, Lock, RefreshCw, Cpu } from "lucide-react";
 import { Navbar } from "../components/layout/Navbar";
-import HeroAvatar from "../components/landing/HeroAvatar";
+
+// Dynamically import 3D Avatar Canvas with ssr: false so SSR never crashes on WebGL/Three.js
+const AvatarCanvas = dynamic(
+  () => import("../components/landing/AvatarCanvas"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[460px] sm:h-[520px] md:h-[560px] flex items-center justify-center relative">
+        <div className="w-56 h-72 rounded-[40px] bg-[#433075]/20 border border-[#A58CF4]/20 animate-pulse flex flex-col items-center justify-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-[#A58CF4] border-t-transparent animate-spin" />
+          <span className="text-[11px] text-[rgba(250,250,250,0.5)] font-medium">Initializing 3D Presence...</span>
+        </div>
+      </div>
+    ),
+  }
+);
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState("memorials");
@@ -95,9 +111,9 @@ export default function HomePage() {
 
             </div>
 
-            {/* Right Column: Holographic Iridescent Neural Avatar Visual */}
+            {/* Right Column: Holographic Iridescent 3D Neural Avatar */}
             <div className="lg:col-span-5 flex justify-center lg:justify-end">
-              <HeroAvatar />
+              <AvatarCanvas />
             </div>
 
           </div>
