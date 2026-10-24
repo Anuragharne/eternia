@@ -3,40 +3,40 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 import {
   Home,
   MessageSquare,
   UserPlus,
-  Layers,
   Settings,
   Menu,
   X,
   Sparkles,
-  Compass,
 } from "lucide-react";
 
 export function Navbar({ mode }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hoveredHref, setHoveredHref] = useState(null);
 
   // Auto-detect chat mode unless explicitly overridden
   const isChatMode = mode === "vertical" || (mode === undefined && pathname === "/chat");
 
+  // Streamlined 4-item navigation: Home, Chat, New Companion, Settings
   const navLinks = [
     { label: "Home", href: "/", icon: Home },
     { label: "Chat", href: "/chat", icon: MessageSquare },
     { label: "New Companion", href: "/onboarding", icon: UserPlus },
-    { label: "How It Works", href: "/#features", icon: Layers },
-    { label: "Use Cases", href: "/#use-cases", icon: Compass },
     { label: "Settings", href: "/settings", icon: Settings },
   ];
 
-  const chatNavLinks = [
-    { label: "Home", href: "/", icon: Home },
-    { label: "Chat", href: "/chat", icon: MessageSquare },
-    { label: "New Companion", href: "/onboarding", icon: UserPlus },
-    { label: "Settings", href: "/settings", icon: Settings },
-  ];
+  const getIsActive = (href) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
+
+  const activeLink = navLinks.find((l) => getIsActive(l.href)) || navLinks[0];
+  const currentTarget = hoveredHref ?? activeLink.href;
 
   // -------------------------------------------------------------
   // VERTICAL LEFT-DOCKED GLASS RAIL (for Chat Mode)
@@ -45,8 +45,10 @@ export function Navbar({ mode }) {
     return (
       <>
         {/* Desktop Left-Docked Floating Glass Pill */}
-        <aside className="hidden md:flex flex-col items-center justify-between w-[68px] h-full max-h-[96vh] my-auto py-5 backdrop-blur-2xl bg-gradient-to-b from-[#A58CF4]/[0.16] via-[#433075]/[0.10] to-[#0D0D0D]/[0.78] border border-[#A58CF4]/35 shadow-[inset_0_1px_1.5px_0_rgba(255,255,255,0.45),inset_0_-1px_1px_0_rgba(0,0,0,0.5),0_16px_45px_rgba(0,0,0,0.7)] rounded-[32px] shrink-0 z-30 select-none">
-          
+        <aside
+          onMouseLeave={() => setHoveredHref(null)}
+          className="hidden md:flex flex-col items-center justify-between w-[68px] h-full max-h-[96vh] my-auto py-5 backdrop-blur-2xl bg-gradient-to-b from-[#A58CF4]/[0.16] via-[#433075]/[0.10] to-[#0D0D0D]/[0.78] border border-[#A58CF4]/35 shadow-[inset_0_1px_1.5px_0_rgba(255,255,255,0.45),inset_0_-1px_1px_0_rgba(0,0,0,0.5),0_16px_45px_rgba(0,0,0,0.7)] rounded-[32px] shrink-0 z-30 select-none"
+        >
           {/* Brand Spark Logo inside Glass Orb */}
           <Link href="/" className="group" title="Back to Home">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#433075] to-[#A58CF4]/60 border border-white/30 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.5),0_4px_12px_rgba(67,48,117,0.4)] flex items-center justify-center text-[#FAFAFA] transition-transform duration-300 group-hover:rotate-45 group-hover:scale-105">
@@ -56,28 +58,38 @@ export function Navbar({ mode }) {
             </div>
           </Link>
 
-          {/* Vertical Glass Capsule Action Icons */}
-          <div className="flex flex-col items-center gap-3">
-            {chatNavLinks.map((link) => {
-              const isActive = pathname === link.href;
+          {/* Vertical Glass Action Icons with Sliding Capsule */}
+          <div className="flex flex-col items-center gap-3 relative">
+            {navLinks.map((link) => {
+              const isTargeted = currentTarget === link.href;
               const Icon = link.icon;
               return (
                 <Link
                   key={link.label}
                   href={link.href}
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 group relative no-underline ${
-                    isActive
-                      ? "bg-white/[0.18] border border-white/30 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.45),0_4px_14px_rgba(67,48,117,0.35)] text-[#FAFAFA]"
-                      : "text-[rgba(250,250,250,0.7)] hover:text-[#FAFAFA] hover:bg-white/[0.08] border border-transparent"
-                  }`}
+                  onMouseEnter={() => setHoveredHref(link.href)}
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center transition-colors duration-200 group relative no-underline select-none"
                 >
+                  {/* Sliding Frosted Glass Capsule */}
+                  {isTargeted && (
+                    <motion.div
+                      layoutId="vertical-glass-pill"
+                      className="absolute inset-0 rounded-2xl bg-white/[0.18] border border-white/35 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.5),0_4px_16px_rgba(67,48,117,0.4)] pointer-events-none"
+                      transition={{
+                        type: "spring",
+                        stiffness: 420,
+                        damping: 32,
+                      }}
+                    />
+                  )}
+
                   <Icon
                     size={18}
-                    className={
-                      isActive
+                    className={`relative z-10 transition-colors ${
+                      isTargeted
                         ? "text-[#FAFAFA]"
-                        : "text-[#A58CF4]/80 group-hover:text-[#FAFAFA] transition-colors"
-                    }
+                        : "text-[#A58CF4]/75 group-hover:text-[#FAFAFA]"
+                    }`}
                   />
 
                   {/* Sleek Tooltip Flyout */}
@@ -131,7 +143,7 @@ export function Navbar({ mode }) {
           {/* Mobile Drawer */}
           {mobileMenuOpen && (
             <div className="mt-2 backdrop-blur-2xl bg-[#0D0D0D]/95 border border-[#A58CF4]/30 shadow-2xl rounded-2xl p-3 flex flex-col gap-1.5 animate-in fade-in duration-150">
-              {chatNavLinks.map((link) => (
+              {navLinks.map((link) => (
                 <Link
                   key={link.label}
                   href={link.href}
@@ -155,8 +167,10 @@ export function Navbar({ mode }) {
   return (
     <header className="fixed top-4 sm:top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 sm:gap-3 w-auto max-w-[96vw]">
       {/* Main Frosted Liquid Glass Pill */}
-      <nav className="backdrop-blur-2xl bg-gradient-to-b from-[#A58CF4]/[0.16] via-[#433075]/[0.10] to-[#0D0D0D]/[0.80] border border-[#A58CF4]/35 shadow-[inset_0_1px_1.5px_0_rgba(255,255,255,0.45),inset_0_-1px_1px_0_rgba(0,0,0,0.5),0_16px_45px_rgba(0,0,0,0.7)] rounded-full px-2.5 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-1.5 transition-all">
-        
+      <nav
+        onMouseLeave={() => setHoveredHref(null)}
+        className="backdrop-blur-2xl bg-gradient-to-b from-[#A58CF4]/[0.16] via-[#433075]/[0.10] to-[#0D0D0D]/[0.80] border border-[#A58CF4]/35 shadow-[inset_0_1px_1.5px_0_rgba(255,255,255,0.45),inset_0_-1px_1px_0_rgba(0,0,0,0.5),0_16px_45px_rgba(0,0,0,0.7)] rounded-full px-2.5 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-1.5 transition-all select-none"
+      >
         {/* Brand Logo & Name */}
         <Link
           href="/"
@@ -172,29 +186,48 @@ export function Navbar({ mode }) {
           </span>
         </Link>
 
-        {/* Desktop Nav Items with Inner Glass Capsule Highlighting */}
-        <div className="hidden md:flex items-center gap-1">
+        {/* Desktop Nav Items with Sliding Liquid Glass Pill */}
+        <div className="hidden md:flex items-center gap-1 relative">
           {navLinks.map((link) => {
-            const isActive =
-              link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+            const isTargeted = currentTarget === link.href;
             const Icon = link.icon;
             return (
               <Link
                 key={link.label}
                 href={link.href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] whitespace-nowrap transition-all duration-200 no-underline ${
-                  isActive
-                    ? "bg-white/[0.18] border border-white/30 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.45),0_4px_14px_rgba(67,48,117,0.35)] text-[#FAFAFA] font-medium"
-                    : "text-[rgba(250,250,250,0.72)] hover:text-[#FAFAFA] hover:bg-white/[0.08] border border-transparent font-normal"
-                }`}
+                onMouseEnter={() => setHoveredHref(link.href)}
+                className="relative flex items-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-full text-[12.5px] whitespace-nowrap transition-colors duration-200 no-underline select-none"
               >
+                {/* Sliding Frosted Glass Capsule */}
+                {isTargeted && (
+                  <motion.div
+                    layoutId="horizontal-glass-pill"
+                    className="absolute inset-0 rounded-full bg-white/[0.18] border border-white/35 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.5),0_4px_16px_rgba(67,48,117,0.4)] pointer-events-none"
+                    transition={{
+                      type: "spring",
+                      stiffness: 420,
+                      damping: 32,
+                    }}
+                  />
+                )}
+
                 <Icon
                   size={14}
-                  className={
-                    isActive ? "text-[#FAFAFA]" : "text-[#A58CF4]/80 group-hover:text-[#FAFAFA]"
-                  }
+                  className={`relative z-10 transition-colors ${
+                    isTargeted
+                      ? "text-[#FAFAFA]"
+                      : "text-[#A58CF4]/80 group-hover:text-[#FAFAFA]"
+                  }`}
                 />
-                <span>{link.label}</span>
+                <span
+                  className={`relative z-10 transition-colors ${
+                    isTargeted
+                      ? "text-[#FAFAFA] font-medium"
+                      : "text-[rgba(250,250,250,0.72)] font-normal"
+                  }`}
+                >
+                  {link.label}
+                </span>
               </Link>
             );
           })}
@@ -212,7 +245,7 @@ export function Navbar({ mode }) {
         </div>
       </nav>
 
-      {/* Floating Circular Glass Action Button (matches Image 1 search/action bubble) */}
+      {/* Floating Circular Glass Action Button */}
       <Link
         href="/chat"
         title="Open Chat"
