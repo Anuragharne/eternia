@@ -100,6 +100,15 @@ export default function OnboardingPage() {
         await api.importMemoriesFile(avatar.id, memoryFile);
       }
 
+      // If user uploaded reference portrait photo, upload for D-ID talking avatar and auto-generate intro video
+      if (photoFile) {
+        try {
+          await api.uploadAvatarPhoto(avatar.id, photoFile, true);
+        } catch (photoErr) {
+          console.warn("Could not upload onboarding avatar photo:", photoErr);
+        }
+      }
+
       setProgressState((p) => ({ ...p, memoriesIngested: true, ready: true }));
     } catch (err) {
       console.error("Error creating companion:", err);

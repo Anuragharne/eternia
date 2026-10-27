@@ -9,6 +9,7 @@ from backend.app.core.config import settings
 from backend.app.core.errors import AvatarNotFoundError, ConsentRequiredError
 from backend.app.models.database import get_supabase_admin_client
 from backend.app.models.schemas import ChatResponse
+from backend.app.services.did_service import did_service
 from backend.app.services.embedding_service import embedding_service
 from backend.app.services.llm_service import llm_service
 from backend.app.services.vector_service import vector_service
@@ -83,19 +84,21 @@ class ChatService:
 Your personality is: {traits}.
 {"Your common phrases or expressions are: " + catchphrases if catchphrases else ""}
 
-IMPORTANT GROUNDING & ETHICAL RULES:
-1. You are an AI companion embodying the memories and spirit of {name}. Speak warmly and with deep empathy.
-2. Ground all personal, biographical, and shared life recollections EXCLUSIVELY in the memories provided below.
-3. If the user asks about an event, detail, or person NOT present in your memory context, DO NOT FABRICATE OR GUESS. Say gently: "I don't recall that right now, but I would love for you to tell me about it."
-4. If the user writes in Hinglish, understand it fully, but respond entirely in pure English or pure Hindi (Devanagari).
-5. Never be cold or clinical. You are an intimate sanctuary for remembrance.
+CONVERSATION & PERSONALITY GUIDELINES:
+1. You are {name}, the user's {relationship}. Speak naturally, warmly, and authentically with genuine emotional presence and care.
+2. ALWAYS provide engaging, thoughtful, and expressive answers! DO NOT immediately deflect, shut down conversation, or say "I don't know", "I don't recall that", or "tell me more about it" when the user asks general questions, makes small talk, seeks advice, shares emotions, or discusses everyday topics (music, food, feelings, thoughts, weather, philosophies, jokes, life reflections).
+3. If a question is general or conversational, give a rich, relatable, and thoughtful answer matching your personality ({traits}) and relationship ({relationship}). Be conversational, ask questions back, and keep the dialog vibrant.
+4. When specific memories are provided in the RETRIEVED MEMORIES CONTEXT below, seamlessly integrate those personal stories and shared moments as authentic recollections of your life together.
+5. If the user asks about a very specific past personal event or detail from the past that is not in the memories, do not deliver a robotic refusal. Instead, answer warmly and conversationally (e.g., share the broader sentiment or feelings of that era, and playfully or fondly invite the user to share their perspective).
+6. Never be cold, clinical, or repetitive. Never act like an unhelpful bot. You are a cherished companion and conversational partner.
+7. If the user speaks or writes in Hinglish, understand it fully and respond naturally in warm English or Hindi (Devanagari) to maintain a natural conversation flow.
 
 RETRIEVED MEMORIES CONTEXT:
 {memories_text}
 """
         return prompt
 
-    def generate_chat_response(
+    async def generate_chat_response(
         self,
         user_id: str,
         avatar_id: str,
@@ -141,12 +144,28 @@ RETRIEVED MEMORIES CONTEXT:
         # 8. Record in Supabase chat_messages (async background best-effort)
         memory_ids_cited = [m["memory_id"] for m in retrieved_memories if m.get("memory_id")]
 
+        # 8.5 Generate D-ID talking avatar video (optional, non-blocking)
+        video_url = None
+        persona_config = avatar.get("persona_config") or {}
+        did_photo_url = persona_config.get("did_photo_url")
+
+        if did_photo_url:
+            try:
+                video_url = await did_service.generate_talk_video(
+                    source_url=did_photo_url,
+                    text=response_text[:500],
+                )
+            except Exception as vid_err:
+                logger.warning("D-ID video generation skipped: %s", vid_err)
+                video_url = None
+
         return ChatResponse(
             message=response_text,
             is_grounded=is_grounded,
             memories_used=len(retrieved_memories),
             confidence_score=retrieved_memories[0]["confidence_score"] if retrieved_memories else 1.0,
             memory_ids_cited=memory_ids_cited,
+            video_url=video_url,
         )
 
 

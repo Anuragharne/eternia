@@ -1,5 +1,6 @@
 """API route handlers for Avatar management."""
 
+import logging
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -8,6 +9,8 @@ from backend.app.core.errors import AvatarNotFoundError, ForbiddenError
 from backend.app.models.database import get_supabase_admin_client
 from backend.app.models.schemas import AvatarCreate, AvatarUpdate, AvatarResponse
 from backend.app.services.vector_service import vector_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/avatars", tags=["Avatars"])
 
@@ -31,16 +34,21 @@ def create_avatar(
         "personality_traits": payload.personality_traits,
         "catchphrases": payload.catchphrases,
         "consent_status": "verified",
-        "voice_status": "ready",
+        "voice_status": "placeholder",
         "memory_count": 0,
         "is_active": True,
     }
 
-    res = db.table("avatars").insert(data).execute()
-    if not res.data:
-        raise HTTPException(status_code=500, detail="Failed to create avatar.")
-
-    return AvatarResponse(**res.data[0])
+    try:
+        res = db.table("avatars").insert(data).execute()
+        if not res.data:
+            raise HTTPException(status_code=500, detail="Failed to create avatar.")
+        return AvatarResponse(**res.data[0])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to insert avatar: %s", exc)
+        raise HTTPException(status_code=400, detail=f"Database error: {str(exc)}")
 
 
 @router.get("", response_model=List[AvatarResponse])

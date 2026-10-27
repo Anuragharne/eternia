@@ -37,7 +37,7 @@ class LLMService:
             "dates or time references, the emotional tone, a 1-sentence factual summary, and key tags."
         )
 
-        models_to_try = list(dict.fromkeys([self.model, "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemma-4-26b-a4b-it"]))
+        models_to_try = list(dict.fromkeys(["gemini-2.5-flash", self.model, "gemini-3.5-flash-lite", "gemini-flash-lite-latest"]))
         for m in models_to_try:
             try:
                 response = self.client.models.generate_content(
@@ -89,10 +89,10 @@ class LLMService:
         )
 
         candidate_models = list(dict.fromkeys([
+            "gemini-2.5-flash",
             self.model,
             "gemini-3.5-flash-lite",
             "gemini-flash-lite-latest",
-            "gemma-4-26b-a4b-it",
         ]))
 
         last_error = None
@@ -110,7 +110,7 @@ class LLMService:
                 last_error = e
 
         logger.error(f"All LLM models exhausted in generate_response: {last_error}")
-        return "I'm right here with you. I'm taking a moment to reflect on everything you've shared. Could you tell me a little more?"
+        return "I'm right here with you, listening closely. Tell me, what else has been on your mind today?"
 
     def verify_grounding(
         self,

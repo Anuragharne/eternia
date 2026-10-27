@@ -12,6 +12,8 @@ import {
   Menu,
   X,
   Sparkles,
+  Video,
+  Phone,
 } from "lucide-react";
 
 export function Navbar({ mode }) {
@@ -22,10 +24,12 @@ export function Navbar({ mode }) {
   // Auto-detect chat mode unless explicitly overridden
   const isChatMode = mode === "vertical" || (mode === undefined && pathname === "/chat");
 
-  // Streamlined 4-item navigation: Home, Chat, New Companion, Settings
+  // Navigation items: Home, Chat, Voice Talk, Video Call, New Companion, Settings
   const navLinks = [
     { label: "Home", href: "/", icon: Home },
     { label: "Chat", href: "/chat", icon: MessageSquare },
+    { label: "Voice Talk", href: "/voice", icon: Phone },
+    { label: "Video Call", href: "/call", icon: Video },
     { label: "New Companion", href: "/onboarding", icon: UserPlus },
     { label: "Settings", href: "/settings", icon: Settings },
   ];

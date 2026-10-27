@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     ELEVENLABS_API_KEY: str = ""
     ELEVENLABS_MODEL: str = "eleven_multilingual_v2"
 
+    # D-ID Talking Avatar API
+    DID_API_KEY: str = ""
+    DID_API_URL: str = "https://api.d-id.com"
+
     # CORS
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 

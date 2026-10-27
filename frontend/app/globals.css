@@ -445,3 +445,13 @@
   -ms-overflow-style: none !important; /* IE and Edge */
   scrollbar-width: none !important;    /* Firefox */
 }
+
+/* D-ID Talking Avatar subtle breathing animation */
+@keyframes subtle-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.008); }
+}
+
+.animate-subtle-breathe {
+  animation: subtle-breathe 4s ease-in-out infinite;
+}

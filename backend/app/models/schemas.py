@@ -92,6 +92,7 @@ class ChatResponse(BaseModel):
     memories_used: int = 0
     confidence_score: float = 1.0
     memory_ids_cited: List[str] = Field(default_factory=list)
+    video_url: Optional[str] = None
 
 
 # ============================================================

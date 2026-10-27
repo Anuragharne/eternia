@@ -155,6 +155,31 @@ export const api = {
     return await response.blob();
   },
 
+  // D-ID Talking Avatar
+  uploadAvatarPhoto: async (avatarId, file, generateIntro = false) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const query = generateIntro ? "?generate_intro=true" : "";
+    return apiCall(`/did-avatar/${avatarId}/upload-photo${query}`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+  getAvatarPhotoUrl: (avatarId) => apiCall(`/did-avatar/${avatarId}/photo-url`),
+  generateTalkVideo: (avatarId, text, voiceProvider = "microsoft", voiceId = "en-US-JennyNeural") =>
+    apiCall(`/did-avatar/${avatarId}/generate-talk`, {
+      method: "POST",
+      body: JSON.stringify({
+        text,
+        voice_provider: voiceProvider,
+        voice_id: voiceId,
+      }),
+    }),
+  getDIDCredits: () => apiCall("/did-avatar/credits"),
+  getIntroVideo: (avatarId) => apiCall(`/did-avatar/${avatarId}/intro-video`),
+  generateIntroVideo: (avatarId) =>
+    apiCall(`/did-avatar/${avatarId}/generate-intro`, { method: "POST" }),
+
   // Data Export & Account Management
   exportDataUrl: (format = "zip") => `${API_BASE_URL}/export/user-data?format=${format}`,
   downloadExport: async (format = "zip") => {

@@ -10,12 +10,12 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
 @router.post("", response_model=ChatResponse)
-def send_message(
+async def send_message(
     payload: ChatRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """Send message to avatar, execute RAG retrieval, and return grounded response."""
-    return chat_service.generate_chat_response(
+    return await chat_service.generate_chat_response(
         user_id=current_user["id"],
         avatar_id=payload.avatar_id,
         user_message=payload.message,

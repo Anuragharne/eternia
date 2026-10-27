@@ -14,14 +14,10 @@ import {
   X,
   ArrowLeft,
   Settings as SettingsIcon,
-  Phone,
-  PhoneOff,
-  Video,
   Mic,
   MicOff,
   Volume2,
   VolumeX,
-  Radio,
   AlertCircle,
   Loader2,
   Square,
@@ -43,27 +39,13 @@ function ChatContent() {
   const [isTyping, setIsTyping] = useState(false);
   const [loadingAvatars, setLoadingAvatars] = useState(true);
 
-  // Voice & Video states (Unrestricted testing phase)
+  // Voice states
   const [isRecording, setIsRecording] = useState(false);
   const [playingMessageId, setPlayingMessageId] = useState(null);
   const [isVoiceLoading, setIsVoiceLoading] = useState(null);
   const [voiceInfo, setVoiceInfo] = useState(null);
-  const [showLiveCallModal, setShowLiveCallModal] = useState(false);
-  const [callMode, setCallMode] = useState("video"); // "video" | "voice"
-  const [isMuted, setIsMuted] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
   const activeAudioRef = useRef(null);
 
-  // Live Voice/Video Call Session State (Manual Click-to-Talk)
-  const [callStatus, setCallStatus] = useState("idle"); // "idle" | "user_speaking" | "thinking" | "speaking" | "muted"
-  const [liveTranscript, setLiveTranscript] = useState("");
-  const [liveSubtitle, setLiveSubtitle] = useState("");
-  const [callTextInput, setCallTextInput] = useState("");
-  const callRecognitionRef = useRef(null);
-  const callAudioRef = useRef(null);
-  const callTranscriptRef = useRef("");
-  const isCallActiveRef = useRef(false);
-  const callStatusRef = useRef("idle");
   const messagesContainerRef = useRef(null);
   const recordingTranscriptRef = useRef("");
   const isRecordingRef = useRef(false);
@@ -90,7 +72,6 @@ function ChatContent() {
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
-  const callTimerRef = useRef(null);
 
   // Smooth scroll ONLY the messages container (never scrolls the outer window or moves message bar)
   const scrollToBottom = (behavior = "smooth") => {
@@ -105,305 +86,6 @@ function ChatContent() {
   useEffect(() => {
     scrollToBottom("smooth");
   }, [messages, isTyping]);
-
-  useEffect(() => {
-    callStatusRef.current = callStatus;
-  }, [callStatus]);
-
-  // Clean up live call audio & recognition
-  const cleanupLiveCall = () => {
-    isCallActiveRef.current = false;
-    if (callTimerRef.current) clearInterval(callTimerRef.current);
-    if (callRecognitionRef.current) {
-      try { callRecognitionRef.current.abort(); } catch {}
-      callRecognitionRef.current = null;
-    }
-    if (callAudioRef.current) {
-      callAudioRef.current.pause();
-      callAudioRef.current = null;
-    }
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-    setLiveTranscript("");
-    callTranscriptRef.current = "";
-    setCallStatus("idle");
-  };
-
-  // Start manual speaking in call (User clicks "Click to Speak")
-  const startUserCallSpeech = () => {
-    if (typeof window === "undefined" || !isCallActiveRef.current) return;
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Microphone speech recognition is supported in Chrome, Edge, and Safari.");
-      return;
-    }
-
-    // Stop companion audio if currently speaking
-    if (callAudioRef.current) {
-      callAudioRef.current.pause();
-      callAudioRef.current = null;
-    }
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-
-    try {
-      if (callRecognitionRef.current) {
-        try { callRecognitionRef.current.abort(); } catch {}
-      }
-
-      const rec = new SpeechRecognition();
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.lang = "en-US";
-      callTranscriptRef.current = "";
-      setLiveTranscript("");
-      setCallStatus("user_speaking");
-
-      rec.onstart = () => {
-        setCallStatus("user_speaking");
-      };
-
-      rec.onresult = (event) => {
-        let interim = "";
-        let final = "";
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
-        }
-
-        const currentText = (final || interim).trim();
-        if (currentText) {
-          setLiveTranscript(currentText);
-          callTranscriptRef.current = currentText;
-        }
-      };
-
-      rec.onerror = (e) => {
-        console.warn("Call speech recognition notice:", e.error);
-        if (e.error === "not-allowed") {
-          setLiveTranscript("Microphone access is paused or denied. Please check browser permissions.");
-          setCallStatus("idle");
-        }
-      };
-
-      rec.onend = () => {
-        // If user is still in speaking state and hasn't clicked "Stop & Send" yet,
-        // do not let browser silence auto-terminate or send!
-        if (isCallActiveRef.current && callStatusRef.current === "user_speaking") {
-          try {
-            rec.start();
-          } catch (e) {}
-        }
-      };
-
-      callRecognitionRef.current = rec;
-      rec.start();
-    } catch (err) {
-      console.warn("Speech recognition error:", err);
-      setCallStatus("idle");
-    }
-  };
-
-  // Stop manual speaking and immediately send converted text to model (User clicks "Stop & Send")
-  const stopAndSendUserCallSpeech = () => {
-    if (!isCallActiveRef.current) return;
-    setCallStatus("thinking");
-    callStatusRef.current = "thinking";
-
-    if (callRecognitionRef.current) {
-      try { callRecognitionRef.current.stop(); } catch {}
-      callRecognitionRef.current = null;
-    }
-
-    const textToSend = (callTranscriptRef.current || liveTranscript).trim();
-    if (textToSend) {
-      handleLiveCallTurn(textToSend);
-    } else {
-      setCallStatus("idle");
-      callStatusRef.current = "idle";
-      setLiveTranscript("No speech detected. Click 'Click to Talk' to speak.");
-    }
-  };
-
-  // Process user turn in live call
-  const handleLiveCallTurn = async (userText) => {
-    if (!userText || !activeAvatar || !isCallActiveRef.current) return;
-    if (callStatusRef.current === "thinking" || callStatusRef.current === "speaking") return;
-
-    setCallStatus("thinking");
-    setLiveTranscript(userText);
-    callTranscriptRef.current = "";
-    if (callRecognitionRef.current) {
-      try { callRecognitionRef.current.abort(); } catch {}
-      callRecognitionRef.current = null;
-    }
-
-    const userMessage = {
-      id: Date.now(),
-      role: "user",
-      content: userText,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMessage]);
-
-    try {
-      const response = await api.sendMessage(activeAvatar.id, userText);
-      if (!isCallActiveRef.current) return;
-
-      const assistantMessage = {
-        id: Date.now() + 1,
-        role: "assistant",
-        content: response.message,
-        timestamp: new Date(),
-        grounded: response.is_grounded,
-        memoriesUsed: response.memories_used,
-        citedIds: response.memory_ids_cited,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      setCallStatus("speaking");
-      setLiveSubtitle(response.message);
-      await playCompanionVoiceInCall(response.message);
-    } catch (err) {
-      console.error("Live call response error:", err);
-      if (!isCallActiveRef.current) return;
-
-      const fallbackText = "I hear you and am reflecting with you. Tell me a little more.";
-      setCallStatus("speaking");
-      setLiveSubtitle(fallbackText);
-      await playCompanionVoiceInCall(fallbackText);
-    }
-  };
-
-  // Play companion speech in call
-  const playCompanionVoiceInCall = async (text) => {
-    if (!isCallActiveRef.current) return;
-
-    try {
-      const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, text);
-      if (!isCallActiveRef.current) return;
-
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      callAudioRef.current = audio;
-
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-        callAudioRef.current = null;
-        onCompanionFinishedSpeaking();
-      };
-
-      audio.onerror = (e) => {
-        console.warn("ElevenLabs audio play error in call, falling back to speech synthesis:", e);
-        fallbackSpeechInCall(text);
-      };
-
-      await audio.play();
-    } catch (err) {
-      console.warn("ElevenLabs call synthesis error, falling back to speech synthesis:", err);
-      fallbackSpeechInCall(text);
-    }
-  };
-
-  const fallbackSpeechInCall = (text) => {
-    if (!isCallActiveRef.current) return;
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      onCompanionFinishedSpeaking();
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
-    utterance.pitch = 1.05;
-
-    utterance.onend = () => {
-      onCompanionFinishedSpeaking();
-    };
-
-    utterance.onerror = () => {
-      onCompanionFinishedSpeaking();
-    };
-
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const onCompanionFinishedSpeaking = () => {
-    if (!isCallActiveRef.current) return;
-    setCallStatus("idle");
-    setLiveTranscript("");
-    callTranscriptRef.current = "";
-  };
-
-  const handleToggleMute = () => {
-    if (!isMuted) {
-      setIsMuted(true);
-      if (callRecognitionRef.current) {
-        try { callRecognitionRef.current.abort(); } catch {}
-        callRecognitionRef.current = null;
-      }
-      if (callAudioRef.current) {
-        callAudioRef.current.pause();
-      }
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-      setCallStatus("muted");
-    } else {
-      setIsMuted(false);
-      setCallStatus("idle");
-    }
-  };
-
-  const handleInterruptCompanion = () => {
-    if (callAudioRef.current) {
-      callAudioRef.current.pause();
-      callAudioRef.current = null;
-    }
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-    startUserCallSpeech();
-  };
-
-  const handleSendCallText = (e) => {
-    e.preventDefault();
-    if (!callTextInput.trim()) return;
-    const text = callTextInput.trim();
-    setCallTextInput("");
-    handleLiveCallTurn(text);
-  };
-
-  // Start live call session on modal open
-  useEffect(() => {
-    if (showLiveCallModal && activeAvatar) {
-      isCallActiveRef.current = true;
-      setCallDuration(0);
-      setLiveTranscript("");
-      setCallStatus("speaking");
-      const greeting = `Hello! It is so wonderful to speak with you today. What is on your mind?`;
-      setLiveSubtitle(greeting);
-
-      // Speak welcoming greeting, then open mic
-      playCompanionVoiceInCall(greeting);
-
-      callTimerRef.current = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-    } else {
-      cleanupLiveCall();
-    }
-
-    return () => {
-      cleanupLiveCall();
-    };
-  }, [showLiveCallModal, activeAvatar?.id]);
 
 
   // Load avatars on mount
@@ -527,6 +209,7 @@ function ChatContent() {
         grounded: response.is_grounded,
         memoriesUsed: response.memories_used,
         citedIds: response.memory_ids_cited,
+        videoUrl: response.video_url || null,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
@@ -560,7 +243,7 @@ function ChatContent() {
       isRecordingRef.current = false;
       try {
         recognitionRef.current?.stop();
-      } catch (e) {}
+      } catch (e) { }
       setIsRecording(false);
 
       const textToSend = (recordingTranscriptRef.current || input).trim();
@@ -575,7 +258,7 @@ function ChatContent() {
     // Starting recording on click
     try {
       if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch {}
+        try { recognitionRef.current.abort(); } catch { }
       }
 
       const recognition = new SpeechRecognition();
@@ -621,7 +304,7 @@ function ChatContent() {
         if (isRecordingRef.current) {
           try {
             recognition.start();
-          } catch (e) {}
+          } catch (e) { }
         } else {
           setIsRecording(false);
         }
@@ -844,11 +527,6 @@ function ChatContent() {
     });
   };
 
-  const formatCallDuration = (secs) => {
-    const mins = Math.floor(secs / 60);
-    const remSecs = secs % 60;
-    return `${mins.toString().padStart(2, "0")}:${remSecs.toString().padStart(2, "0")}`;
-  };
 
   return (
     <div className="h-screen h-[100dvh] w-full overflow-hidden bg-[#0D0D0D] flex flex-col md:flex-row p-2 sm:p-3 md:p-3.5 gap-2.5 sm:gap-3 relative">
@@ -867,7 +545,7 @@ function ChatContent() {
       {/* Main Chat Viewport - Pinned ChatGPT/Claude Style Layout */}
       <main className="flex-1 min-w-0 h-full flex flex-col z-10 overflow-hidden">
         <div className="w-full flex-1 min-h-0 rounded-[24px] sm:rounded-[28px] bg-[#0D0D0D] border border-[#A58CF4]/25 shadow-[0_16px_50px_rgba(13,13,13,0.7)] flex flex-col md:flex-row overflow-hidden">
-          
+
           {/* Sidebar: Companions List */}
           <aside className="w-full md:w-[280px] bg-[#433075]/15 border-r border-[#A58CF4]/20 flex flex-col p-4 shrink-0 h-full overflow-hidden">
             <div className="flex items-center justify-between pb-3 mb-2 border-b border-[#A58CF4]/15 shrink-0">
@@ -897,11 +575,10 @@ function ChatContent() {
                   <div
                     key={av.id}
                     onClick={() => setActiveAvatar(av)}
-                    className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all group relative ${
-                      activeAvatar?.id === av.id
+                    className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all group relative ${activeAvatar?.id === av.id
                         ? "bg-[#433075] text-[#FAFAFA] shadow-xs border border-[#A58CF4]/35"
                         : "hover:bg-[#433075]/20 text-[rgba(250,250,250,0.7)] border border-transparent"
-                    }`}
+                      }`}
                   >
                     <div className="w-9 h-9 rounded-full bg-[#433075] border border-[#A58CF4]/30 text-[#FAFAFA] flex items-center justify-center font-medium text-[13px] shrink-0">
                       {av.name.charAt(0).toUpperCase()}
@@ -947,7 +624,7 @@ function ChatContent() {
 
           {/* Main Chat Thread & Stationary Input (ChatGPT / Claude Style) */}
           <section className="flex-1 min-h-0 flex flex-col h-full bg-[#0D0D0D] overflow-hidden">
-            
+
             {/* Chat Thread Header */}
             {activeAvatar ? (
               <div className="px-4 sm:px-6 py-3 bg-[#433075]/20 border-b border-[#A58CF4]/20 flex items-center justify-between shrink-0">
@@ -974,28 +651,8 @@ function ChatContent() {
                   </div>
                 </div>
 
-                {/* Header Actions: Live Voice, Live Video, Stories Archive, Add Memory, Delete Companion */}
+                {/* Header Actions: Stories Archive, Add Memory, Delete Companion */}
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <button
-                    onClick={() => {
-                      setCallMode("voice");
-                      setShowLiveCallModal(true);
-                    }}
-                    className="btn-pill-ghost text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1.5 cursor-pointer"
-                    title="Start Unlimited Live Voice Session"
-                  >
-                    <Phone size={12} className="text-[#A58CF4]" /> <span className="hidden sm:inline">Live</span> Voice
-                  </button>
-                  <button
-                    onClick={() => {
-                      setCallMode("video");
-                      setShowLiveCallModal(true);
-                    }}
-                    className="btn-pill-primary text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1.5 cursor-pointer"
-                    title="Start Unlimited Live Video Presence"
-                  >
-                    <Video size={12} className="text-[#FAFAFA]" /> <span className="hidden sm:inline">Live</span> Video
-                  </button>
                   <button
                     onClick={() => openStoriesModal()}
                     className="btn-pill-ghost text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1 cursor-pointer"
@@ -1037,9 +694,8 @@ function ChatContent() {
               {messages.map((m) => (
                 <div
                   key={m.id}
-                  className={`flex flex-col ${
-                    m.role === "user" ? "items-end" : "items-start"
-                  }`}
+                  className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"
+                    }`}
                 >
                   <div
                     className={
@@ -1051,7 +707,7 @@ function ChatContent() {
                     <p className="whitespace-pre-wrap">{m.content}</p>
                   </div>
 
-                  <div className="flex items-center gap-3 mt-1.5 px-1">
+                  <div className="flex items-center gap-2 sm:gap-3 mt-1.5 px-1 flex-wrap">
                     <span className="text-[10.5px] text-[rgba(250,250,250,0.55)]">
                       {formatTime(m.timestamp)}
                     </span>
@@ -1083,11 +739,10 @@ function ChatContent() {
                         </button>
 
                         <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                            m.grounded
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${m.grounded
                               ? "bg-[#433075] text-[#FAFAFA] border border-[#A58CF4]/40"
                               : "bg-[#433075]/40 text-[#A58CF4] border border-[#A58CF4]/25"
-                          }`}
+                            }`}
                         >
                           {m.grounded ? "✓ Grounded in Memory" : "✦ Gentle Reflection"}
                         </span>
@@ -1099,7 +754,7 @@ function ChatContent() {
 
               {isTyping && (
                 <div className="flex items-start">
-                  <div className="chat-message-assistant py-3 px-4 flex items-center gap-1.5">
+                  <div className="chat-message-assistant py-3 px-4 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-[#A58CF4] animate-bounce"></span>
                     <span className="w-2 h-2 rounded-full bg-[#A58CF4] animate-bounce [animation-delay:0.2s]"></span>
                     <span className="w-2 h-2 rounded-full bg-[#A58CF4] animate-bounce [animation-delay:0.4s]"></span>
@@ -1127,11 +782,10 @@ function ChatContent() {
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  className={`transition-all p-1.5 rounded-full cursor-pointer flex items-center justify-center ${
-                    isRecording
+                  className={`transition-all p-1.5 rounded-full cursor-pointer flex items-center justify-center ${isRecording
                       ? "bg-red-600 text-[#FAFAFA] shadow-[0_0_14px_rgba(220,38,38,0.8)] animate-pulse"
                       : "text-[rgba(250,250,250,0.7)] hover:text-[#A58CF4]"
-                  }`}
+                    }`}
                   title={isRecording ? "Click to stop talking & send" : "Click to talk (Microphone)"}
                 >
                   {isRecording ? <Square size={14} fill="currentColor" /> : <Mic size={16} />}
@@ -1165,236 +819,6 @@ function ChatContent() {
           </section>
         </div>
       </main>
-
-      {/* Live Voice & Video Presence Call Modal (Unlimited Testing Session) */}
-      {showLiveCallModal && (
-        <div className="modal-backdrop">
-          <div className="w-full max-w-[620px] rounded-[32px] bg-[#0D0D0D] p-6 sm:p-8 border border-[#A58CF4]/30 shadow-[0_24px_80px_rgba(13,13,13,0.95)] flex flex-col items-center relative text-center">
-            
-            {/* Top Status */}
-            <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-[#A58CF4]/20">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#A58CF4] animate-pulse" />
-                <span className="text-[12px] font-medium text-[#FAFAFA]">
-                  Live {callMode === "video" ? "Video" : "Voice"} Presence • Uncapped Testing Call
-                </span>
-              </div>
-              <span className="px-2.5 py-0.5 rounded-full bg-[#433075] text-[#FAFAFA] text-[11px] font-medium border border-[#A58CF4]/30">
-                {formatCallDuration(callDuration)}
-              </span>
-            </div>
-
-            {/* Neural Presence View */}
-            <div className="w-full h-[260px] sm:h-[300px] rounded-[24px] overflow-hidden relative bg-gradient-to-b from-[#433075]/25 to-[#0D0D0D] border border-[#A58CF4]/25 flex items-center justify-center mb-6">
-              <div className="absolute w-[220px] h-[220px] rounded-full bg-gradient-to-tr from-[#433075]/40 via-[#A58CF4]/25 to-transparent blur-2xl pointer-events-none" />
-              
-              <img
-                src="/images/neural_avatar_cutout.png"
-                alt="Neural Presence Visual"
-                className="w-full max-w-[220px] h-auto object-contain filter contrast-[1.05] drop-shadow-[0_15px_30px_rgba(67,48,117,0.5)] transition-transform duration-500 hover:scale-105"
-              />
-
-              {/* Dynamic Soundwave & Presence State */}
-              <div className="absolute bottom-4 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0D0D0D]/85 backdrop-blur-md border border-[#A58CF4]/30 shadow-lg">
-                <Radio
-                  size={13}
-                  className={
-                    callStatus === "speaking"
-                      ? "text-[#A58CF4] animate-pulse"
-                      : callStatus === "thinking"
-                      ? "text-[#433075] animate-spin"
-                      : "text-[#A58CF4]"
-                  }
-                />
-                <div className="flex items-center gap-1 h-3.5">
-                  <span
-                    className={`w-1 rounded-full transition-all ${
-                      callStatus === "speaking"
-                        ? "bg-[#A58CF4] h-4 animate-bounce"
-                        : callStatus === "thinking"
-                        ? "bg-[#433075] h-2 animate-pulse"
-                        : "bg-[#A58CF4] h-2"
-                    }`}
-                  />
-                  <span
-                    className={`w-1 rounded-full transition-all ${
-                      callStatus === "speaking"
-                        ? "bg-[#A58CF4] h-5 animate-bounce [animation-delay:0.15s]"
-                        : callStatus === "thinking"
-                        ? "bg-[#433075] h-3 animate-pulse [animation-delay:0.15s]"
-                        : "bg-[#A58CF4] h-3.5"
-                    }`}
-                  />
-                  <span
-                    className={`w-1 rounded-full transition-all ${
-                      callStatus === "speaking"
-                        ? "bg-[#A58CF4] h-2.5 animate-bounce [animation-delay:0.3s]"
-                        : callStatus === "thinking"
-                        ? "bg-[#433075] h-1.5 animate-pulse [animation-delay:0.3s]"
-                        : "bg-[#A58CF4] h-1.5"
-                    }`}
-                  />
-                  <span
-                    className={`w-1 rounded-full transition-all ${
-                      callStatus === "speaking"
-                        ? "bg-[#A58CF4] h-5 animate-bounce [animation-delay:0.45s]"
-                        : callStatus === "thinking"
-                        ? "bg-[#433075] h-3 animate-pulse [animation-delay:0.45s]"
-                        : "bg-[#A58CF4] h-3"
-                    }`}
-                  />
-                </div>
-                <span className="text-[11px] text-[#FAFAFA] font-medium ml-1">
-                  {callStatus === "speaking"
-                    ? `${activeAvatar?.name || "Companion"} Speaking (${voiceInfo?.voice_name || "Voice"})`
-                    : callStatus === "thinking"
-                    ? "Reflecting on memories..."
-                    : isMuted
-                    ? "Microphone Muted"
-                    : callStatus === "user_speaking"
-                    ? "Listening to you... Click 'Stop & Send' when done"
-                    : `${activeAvatar?.name || "Companion"} Ready • Click below to talk`}
-                </span>
-              </div>
-            </div>
-
-            {/* Companion Name */}
-            <h3 className="text-[20px] font-medium text-[#FAFAFA] mb-1">
-              {activeAvatar?.name}
-            </h3>
-
-            {/* Live Subtitle & Transcript Capsule */}
-            <div className="w-full max-w-[500px] min-h-[72px] p-3.5 rounded-2xl bg-[#433075]/15 border border-[#A58CF4]/30 shadow-inner flex flex-col justify-center items-center text-center mb-4 transition-all">
-              {callStatus === "thinking" ? (
-                <div className="flex items-center gap-2 text-[12.5px] text-[#A58CF4] font-medium">
-                  <Loader2 size={15} className="animate-spin text-[#A58CF4]" />
-                  <span>Reflecting on memories with {activeAvatar?.name}...</span>
-                </div>
-              ) : callStatus === "speaking" ? (
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase tracking-wider text-[#A58CF4] font-medium flex items-center justify-center gap-1">
-                    <Volume2 size={11} /> {activeAvatar?.name} Speaking ({voiceInfo?.voice_name || "Voice"})
-                  </span>
-                  <p className="text-[12.5px] text-[#FAFAFA] font-medium leading-relaxed italic">
-                    "{liveSubtitle}"
-                  </p>
-                </div>
-              ) : callStatus === "user_speaking" ? (
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase tracking-wider text-red-400 font-medium flex items-center justify-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
-                    Listening... Click "Stop & Send" when done:
-                  </span>
-                  <p className="text-[13px] text-[#FAFAFA] font-medium leading-relaxed">
-                    {liveTranscript ? `"${liveTranscript}"` : "(Speak into your microphone...)"}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-1 text-[12px] text-[rgba(250,250,250,0.7)]">
-                  <div className="flex items-center gap-1.5">
-                    <Mic size={13} className="text-[#A58CF4]" />
-                    <span>Click <strong>"Click to Talk"</strong> below to speak</span>
-                  </div>
-                  <span className="text-[10.5px] text-[rgba(250,250,250,0.5)]">
-                    Take your time — your message is only sent when you click Stop & Send.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Call Action Controls */}
-            <div className="flex flex-col items-center gap-3 w-full max-w-[480px]">
-              {/* Inline Quick Text Message input */}
-              <form onSubmit={handleSendCallText} className="w-full flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Or type a thought to say aloud..."
-                  value={callTextInput}
-                  onChange={(e) => setCallTextInput(e.target.value)}
-                  className="flex-1 px-4 py-2 text-[12px] bg-[#0D0D0D] border border-[#A58CF4]/25 rounded-full text-[#FAFAFA] focus:outline-none focus:border-[#A58CF4]"
-                />
-                <button
-                  type="submit"
-                  disabled={!callTextInput.trim() || callStatus === "thinking"}
-                  className="btn-pill-primary text-[11px] px-3.5 py-2 disabled:opacity-40 cursor-pointer"
-                  title="Send message in call"
-                >
-                  <Send size={12} />
-                </button>
-              </form>
-
-              <div className="flex items-center gap-3 mt-1 flex-wrap justify-center">
-                {/* Mute Button */}
-                <button
-                  type="button"
-                  onClick={handleToggleMute}
-                  className={`p-3 rounded-full border transition-all cursor-pointer ${
-                    isMuted
-                      ? "bg-[#433075] text-[#FAFAFA] border-[#A58CF4]"
-                      : "bg-[#0D0D0D] text-[#A58CF4] border-[#A58CF4]/30 hover:border-[#A58CF4]"
-                  }`}
-                  title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
-                >
-                  {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
-                </button>
-
-                {/* Primary Manual Talk Controls (Click to Talk / Stop & Send) */}
-                {callStatus === "idle" && (
-                  <button
-                    type="button"
-                    onClick={startUserCallSpeech}
-                    className="btn-pill-primary px-6 py-2.5 text-[12.5px] font-medium flex items-center gap-2 cursor-pointer shadow-lg hover:scale-105 transition-all"
-                    title="Click to talk"
-                  >
-                    <Mic size={15} /> Click to Talk
-                  </button>
-                )}
-
-                {callStatus === "user_speaking" && (
-                  <button
-                    type="button"
-                    onClick={stopAndSendUserCallSpeech}
-                    className="px-6 py-2.5 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-[#FAFAFA] text-[12.5px] font-medium flex items-center gap-2 cursor-pointer shadow-[0_0_16px_rgba(220,38,38,0.6)] animate-pulse hover:scale-105 transition-all"
-                    title="Stop talking and send message"
-                  >
-                    <Square size={14} fill="currentColor" /> Stop & Send
-                  </button>
-                )}
-
-                {callStatus === "thinking" && (
-                  <button
-                    type="button"
-                    disabled
-                    className="px-6 py-2.5 rounded-full bg-[#433075]/60 border border-[#A58CF4]/40 text-[#FAFAFA] text-[12.5px] font-medium flex items-center gap-2 opacity-80 cursor-not-allowed"
-                  >
-                    <Loader2 size={14} className="animate-spin text-[#A58CF4]" /> Reflecting...
-                  </button>
-                )}
-
-                {callStatus === "speaking" && (
-                  <button
-                    type="button"
-                    onClick={handleInterruptCompanion}
-                    className="px-5 py-2.5 rounded-full bg-[#433075]/40 hover:bg-[#433075] border border-[#A58CF4]/40 text-[#FAFAFA] text-[12px] font-medium flex items-center gap-1.5 transition-all cursor-pointer"
-                    title="Interrupt companion to speak now"
-                  >
-                    <Square size={13} className="text-[#A58CF4]" /> Interrupt & Talk
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setShowLiveCallModal(false)}
-                  className="px-5 py-2.5 rounded-full bg-[#433075] hover:bg-[#A58CF4] hover:text-[#0D0D0D] text-[#FAFAFA] border border-[#A58CF4]/40 font-medium text-[12.5px] flex items-center gap-2 transition-all cursor-pointer shadow-lg"
-                >
-                  <PhoneOff size={15} /> End Session
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
 
       {/* Add Memory Modal */}
       {showMemoryModal && (
@@ -1546,7 +970,7 @@ function ChatContent() {
       {showStoriesModal && activeAvatar && (
         <div className="modal-backdrop">
           <div className="w-full max-w-[640px] max-h-[85vh] rounded-[28px] bg-[#0D0D0D] p-6 sm:p-7 border border-[#A58CF4]/30 shadow-[0_24px_80px_rgba(13,13,13,0.95)] flex flex-col relative text-left">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#A58CF4]/20 shrink-0">
               <div className="flex items-center gap-2">
