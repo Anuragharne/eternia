@@ -200,4 +200,15 @@ export const api = {
     window.URL.revokeObjectURL(downloadUrl);
     document.body.removeChild(a);
   },
+
+  // Simli Live Avatar WebRTC Token
+  getSimliToken: (avatarId = null, faceId = null) =>
+    apiCall("/simli/token", {
+      method: "POST",
+      body: JSON.stringify({ avatar_id: avatarId, face_id: faceId }),
+    }),
+
+  getSimliFaces: () => apiCall("/simli/faces"),
 };
+
+

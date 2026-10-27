@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     DID_API_KEY: str = ""
     DID_API_URL: str = "https://api.d-id.com"
 
+    # Simli Live Interactive Avatar API
+    SIMLI_API_KEY: str = ""
+    SIMLI_API_URL: str = "https://api.simli.ai"
+    SIMLI_DEFAULT_FACE_ID: str = "03ce3ee8-db97-4150-a333-8f643d48fee9"
+
     # CORS
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
