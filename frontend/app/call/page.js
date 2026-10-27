@@ -103,8 +103,9 @@ function CallContent() {
   const simliClientRef = useRef(null);
   const activeSessionKeyRef = useRef("");
   const isConnectingRef = useRef(false);
-  const audioContextSourceAttached = useRef(false);
   const recognitionRef = useRef(null);
+  const lastTranscriptRef = useRef("");
+  const hasGreetedRef = useRef(false);
   const timerRef = useRef(null);
 
   // 1. Call duration timer
@@ -277,14 +278,9 @@ function CallContent() {
 
         await client.start();
 
-        // Attach companion audio element for automatic lip-sync
-        if (companionAudioRef.current && !audioContextSourceAttached.current) {
-          try {
-            client.listenToAudioElement(companionAudioRef.current);
-            audioContextSourceAttached.current = true;
-          } catch (audioErr) {
-            console.warn("[Simli] Audio element binding notice:", audioErr);
-          }
+        if (simliAudioRef.current) {
+          simliAudioRef.current.muted = isMuted;
+          simliAudioRef.current.play().catch(() => {});
         }
       }
     } catch (err) {
@@ -335,7 +331,116 @@ function CallContent() {
     };
   }, []);
 
-  // 4. Speech Recognition Setup (Web Speech API)
+  // 4. Stream speech audio chunks into Simli client for real-time lip-sync and audio playback
+  const streamAudioToSimli = async (pcmBytes) => {
+    if (!simliClientRef.current || !pcmBytes || pcmBytes.length === 0) return;
+
+    const client = simliClientRef.current;
+    if (client.audioContext && client.audioContext.state === "suspended") {
+      try {
+        await client.audioContext.resume();
+      } catch {}
+    }
+
+    // Ensure WebRTC audio output element is active and unmuted
+    if (simliAudioRef.current) {
+      simliAudioRef.current.muted = isMuted;
+      try {
+        await simliAudioRef.current.play();
+      } catch {}
+    }
+
+    // Chunk size: 6000 bytes = 3000 16-bit samples = 187.5ms of 16kHz audio
+    const chunkSize = 6000;
+    const totalChunks = Math.ceil(pcmBytes.length / chunkSize);
+
+    for (let i = 0; i < totalChunks; i++) {
+      if (!simliClientRef.current) break; // If call ended during playback
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, pcmBytes.length);
+      const chunk = pcmBytes.slice(start, end);
+      try {
+        client.sendAudioData(chunk);
+      } catch (err) {
+        console.warn("[Simli] Audio chunk send notice:", err);
+      }
+      // Paced stream matching speech duration to prevent jitter
+      await new Promise((r) => setTimeout(r, 180));
+    }
+  };
+
+  // 5. Play companion speech audio (Pipes directly to Simli WebRTC or falls back to HTML5 audio)
+  const playCompanionSpeech = async (replyText) => {
+    if (!replyText || !activeAvatar) return;
+    setIsSpeaking(true);
+    setSubtitle(replyText);
+
+    try {
+      // 1. Fetch raw 16kHz PCM audio from ElevenLabs for Simli lip-sync
+      const pcmBytes = await api.getSpeechAudioPCM(activeAvatar.id, replyText);
+
+      if (simliClientRef.current && isSimliConnected) {
+        // Stream directly into Simli's WebRTC channel for animated lip movements + audio
+        await streamAudioToSimli(pcmBytes);
+      } else {
+        // Fallback: If WebRTC stream is offline/connecting, play MP3 via HTML5 audio
+        const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, replyText);
+        const audioUrl = URL.createObjectURL(audioBlob);
+        if (companionAudioRef.current) {
+          companionAudioRef.current.src = audioUrl;
+          companionAudioRef.current.muted = isMuted;
+          await new Promise((resolve) => {
+            companionAudioRef.current.onended = () => {
+              URL.revokeObjectURL(audioUrl);
+              resolve();
+            };
+            companionAudioRef.current.onerror = () => {
+              URL.revokeObjectURL(audioUrl);
+              resolve();
+            };
+            companionAudioRef.current.play().catch(() => resolve());
+          });
+        }
+      }
+    } catch (voiceErr) {
+      console.warn("[Call] Voice synthesis fallback:", voiceErr);
+      try {
+        // Secondary fallback: standard MP3 speech
+        const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, replyText);
+        const audioUrl = URL.createObjectURL(audioBlob);
+        if (companionAudioRef.current) {
+          companionAudioRef.current.src = audioUrl;
+          companionAudioRef.current.muted = isMuted;
+          await new Promise((resolve) => {
+            companionAudioRef.current.onended = () => {
+              URL.revokeObjectURL(audioUrl);
+              resolve();
+            };
+            companionAudioRef.current.onerror = () => {
+              URL.revokeObjectURL(audioUrl);
+              resolve();
+            };
+            companionAudioRef.current.play().catch(() => resolve());
+          });
+        }
+      } catch (mp3Err) {
+        // Tertiary fallback: Browser SpeechSynthesis
+        if ("speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(replyText);
+          await new Promise((resolve) => {
+            utterance.onend = () => resolve();
+            utterance.onerror = () => resolve();
+            window.speechSynthesis.speak(utterance);
+          });
+        }
+      }
+    } finally {
+      setIsSpeaking(false);
+    }
+  };
+
+  // 6. Speech Recognition Setup (Web Speech API) - Fixed stale closure
   const startListening = () => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -357,14 +462,16 @@ function CallContent() {
 
       recognition.onstart = () => {
         setIsListening(true);
+        lastTranscriptRef.current = "";
         setTranscript("");
       };
 
       recognition.onresult = (e) => {
         let currentText = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
+        for (let i = 0; i < e.results.length; i++) {
           currentText += e.results[i][0].transcript;
         }
+        lastTranscriptRef.current = currentText;
         setTranscript(currentText);
       };
 
@@ -375,8 +482,10 @@ function CallContent() {
 
       recognition.onend = () => {
         setIsListening(false);
-        if (transcript.trim()) {
-          handleSendMessage(transcript.trim());
+        const textToSend = lastTranscriptRef.current.trim();
+        if (textToSend) {
+          lastTranscriptRef.current = "";
+          handleSendMessage(textToSend);
         }
       };
 
@@ -395,69 +504,64 @@ function CallContent() {
       } catch {}
     }
     setIsListening(false);
-    if (transcript.trim()) {
-      handleSendMessage(transcript.trim());
+    const textToSend = lastTranscriptRef.current.trim();
+    if (textToSend) {
+      lastTranscriptRef.current = "";
+      handleSendMessage(textToSend);
     }
   };
 
-  // 5. Send message and handle companion response with Simli audio pipe
+  // 7. Send message and handle companion response with Simli audio pipe
   const handleSendMessage = async (userMessage) => {
     if (!userMessage || !activeAvatar) return;
     setTranscript("");
     setTextInput("");
     setSubtitle("Thinking...");
+    setIsSpeaking(true);
 
     try {
       // Send chat message to backend
       const res = await api.sendMessage(activeAvatar.id, userMessage);
       const reply = res?.companion_reply || res?.message || "";
-      setSubtitle(reply);
+      if (!reply) throw new Error("No response from companion");
 
-      // Play companion speech audio
-      try {
-        setIsSpeaking(true);
-        const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, reply);
-        const audioUrl = URL.createObjectURL(audioBlob);
-
-        if (companionAudioRef.current) {
-          companionAudioRef.current.pause();
-          companionAudioRef.current.src = audioUrl;
-          companionAudioRef.current.muted = isMuted;
-
-          companionAudioRef.current.onended = () => {
-            setIsSpeaking(false);
-            URL.revokeObjectURL(audioUrl);
-          };
-
-          companionAudioRef.current.onerror = () => {
-            setIsSpeaking(false);
-          };
-
-          await companionAudioRef.current.play().catch((playErr) => {
-            console.warn("Audio play notice:", playErr);
-            setIsSpeaking(false);
-          });
-        }
-      } catch (voiceErr) {
-        console.warn("TTS speech fallback:", voiceErr);
-        // Fallback to browser SpeechSynthesis
-        if ("speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(reply);
-          utterance.onstart = () => setIsSpeaking(true);
-          utterance.onend = () => setIsSpeaking(false);
-          utterance.onerror = () => setIsSpeaking(false);
-          window.speechSynthesis.speak(utterance);
-        } else {
-          setIsSpeaking(false);
-        }
-      }
+      await playCompanionSpeech(reply);
     } catch (err) {
       console.error("Send message error:", err);
       setSubtitle("Could not reach companion. Please try again.");
       setIsSpeaking(false);
     }
   };
+
+  // 8. Automatic Interactive Greeting when Call Connects
+  useEffect(() => {
+    if (activeAvatar && !hasGreetedRef.current && !isLoading) {
+      hasGreetedRef.current = true;
+      const greetingTimer = setTimeout(() => {
+        const greeting = `Hey! It's so good to see you. How are you doing today?`;
+        playCompanionSpeech(greeting);
+      }, 1000);
+      return () => clearTimeout(greetingTimer);
+    }
+  }, [activeAvatar?.id, isLoading]);
+
+  // 9. Unlock Web Audio Context on first user click/touch
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (simliClientRef.current?.audioContext?.state === "suspended") {
+        simliClientRef.current.audioContext.resume().catch(() => {});
+      }
+      if (simliAudioRef.current) {
+        simliAudioRef.current.play().catch(() => {});
+      }
+    };
+    window.addEventListener("click", unlockAudio, { once: true });
+    window.addEventListener("touchstart", unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("touchstart", unlockAudio);
+    };
+  }, []);
 
   // 6. Toggle Mute
   const toggleMute = () => {

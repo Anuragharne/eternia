@@ -151,19 +151,22 @@ class VoiceService:
         text: str,
         voice_id: str,
         model_id: Optional[str] = None,
+        output_format: Optional[str] = None,
     ) -> bytes:
         """Synthesize text into speech audio bytes using ElevenLabs API.
 
         Uses in-memory LRU cache to preserve ElevenLabs character credits for identical inputs.
+        Supports raw PCM 16kHz (pcm_16000) for real-time WebRTC lip-sync streaming.
         """
         clean_text = text.strip()
         if not clean_text:
             raise ValueError("Text to synthesize cannot be empty.")
 
         model = model_id or settings.ELEVENLABS_MODEL or "eleven_multilingual_v2"
+        fmt = output_format or "mp3_44100_128"
 
-        # Cache key based on voice, model, and text hash
-        cache_key = hashlib.sha256(f"{voice_id}:{model}:{clean_text}".encode("utf-8")).hexdigest()
+        # Cache key based on voice, model, format, and text hash
+        cache_key = hashlib.sha256(f"{voice_id}:{model}:{fmt}:{clean_text}".encode("utf-8")).hexdigest()
 
         if cache_key in _AUDIO_CACHE:
             logger.info("Voice synthesis cache HIT for key %s", cache_key[:12])
@@ -171,7 +174,16 @@ class VoiceService:
             return _AUDIO_CACHE[cache_key]
 
         endpoint = f"{self.api_url}/{voice_id}"
-        headers = self.get_headers()
+        if fmt == "pcm_16000":
+            endpoint = f"{endpoint}?output_format=pcm_16000"
+            headers = {
+                "xi-api-key": settings.ELEVENLABS_API_KEY,
+                "Content-Type": "application/json",
+                "Accept": "*/*",
+            }
+        else:
+            headers = self.get_headers()
+
         payload = {
             "text": clean_text,
             "model_id": model,
@@ -184,8 +196,9 @@ class VoiceService:
         }
 
         logger.info(
-            "Synthesizing %d characters via ElevenLabs with voice %s (model: %s)...",
+            "Synthesizing %d characters via ElevenLabs (format: %s, voice: %s, model: %s)...",
             len(clean_text),
+            fmt,
             voice_id,
             model,
         )

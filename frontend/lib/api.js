@@ -155,6 +155,26 @@ export const api = {
     return await response.blob();
   },
 
+  getSpeechAudioPCM: async (avatarId, text) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || "demo-token";
+    const url = `${API_BASE_URL}/voice/${avatarId}/speak`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text, output_format: "pcm_16000" }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `PCM synthesis failed with status ${response.status}`);
+    }
+    const arrayBuf = await response.arrayBuffer();
+    return new Uint8Array(arrayBuf);
+  },
+
   // D-ID Talking Avatar
   uploadAvatarPhoto: async (avatarId, file, generateIntro = false) => {
     const formData = new FormData();

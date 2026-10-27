@@ -22,6 +22,7 @@ router = APIRouter(prefix="/voice", tags=["Voice"])
 class SpeakRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000, description="Text to speak")
     voice_id: Optional[str] = Field(None, description="Optional custom voice ID override")
+    output_format: Optional[str] = Field("mp3", description="Audio format: mp3 or pcm_16000")
 
 
 @router.get("/catalog")
@@ -108,12 +109,19 @@ async def speak_text_post(
         voice_id = payload.voice_id
 
     try:
-        audio_bytes = await voice_service.synthesize(text=payload.text, voice_id=voice_id)
+        is_pcm = payload.output_format == "pcm_16000"
+        audio_bytes = await voice_service.synthesize(
+            text=payload.text,
+            voice_id=voice_id,
+            output_format=payload.output_format,
+        )
+        media_type = "audio/pcm" if is_pcm else "audio/mpeg"
+        filename = f"speech_{avatar_id[:8]}.pcm" if is_pcm else f"speech_{avatar_id[:8]}.mp3"
         return Response(
             content=audio_bytes,
-            media_type="audio/mpeg",
+            media_type=media_type,
             headers={
-                "Content-Disposition": f'inline; filename="speech_{avatar_id[:8]}.mp3"',
+                "Content-Disposition": f'inline; filename="{filename}"',
                 "X-Voice-Name": voice_name,
                 "X-Voice-Id": voice_id,
             },
