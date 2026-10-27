@@ -21,6 +21,7 @@ import {
   Smile,
   ChevronDown,
   User,
+  Check,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -78,7 +79,7 @@ function CallContent() {
   // Simli Live Avatar State
   const [isSimliConnected, setIsSimliConnected] = useState(false);
   const [isSimliConnecting, setIsSimliConnecting] = useState(false);
-  const [selectedFaceId, setSelectedFaceId] = useState(DEFAULT_SIMLI_FACES[0].id);
+  const [selectedFaceId, setSelectedFaceId] = useState("custom");
   const [showFaceMenu, setShowFaceMenu] = useState(false);
 
   // Audio & Speech
@@ -100,9 +101,8 @@ function CallContent() {
   const simliAudioRef = useRef(null);
   const companionAudioRef = useRef(null);
   const simliClientRef = useRef(null);
-  const connectionSeqRef = useRef(0);
+  const activeSessionKeyRef = useRef("");
   const isConnectingRef = useRef(false);
-  const currentConnectedKeyRef = useRef("");
   const audioContextSourceAttached = useRef(false);
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
@@ -152,7 +152,6 @@ function CallContent() {
             console.warn("Photo fetch notice:", pErr);
           }
 
-          setCallStatus("Live Holographic Call");
           setSubtitle(`Connected with ${target.name}. Click the mic or type below.`);
         } else {
           setCallStatus("No Companion Found");
@@ -184,8 +183,10 @@ function CallContent() {
   const initSimliSession = async (faceId = selectedFaceId) => {
     if (typeof window === "undefined" || !activeAvatar) return;
 
+    const targetFaceParam = faceId === "custom" ? null : faceId;
     const sessionKey = `${activeAvatar.id}_${faceId}`;
-    if (isSimliConnected && currentConnectedKeyRef.current === sessionKey && simliClientRef.current) {
+
+    if (isSimliConnected && activeSessionKeyRef.current === sessionKey && simliClientRef.current) {
       return;
     }
 
@@ -193,7 +194,6 @@ function CallContent() {
       return;
     }
 
-    const seq = ++connectionSeqRef.current;
     isConnectingRef.current = true;
     setIsSimliConnecting(true);
     setCallStatus("Connecting to Simli 16:9 Stream...");
@@ -202,25 +202,14 @@ function CallContent() {
     if (simliClientRef.current) {
       const prevClient = simliClientRef.current;
       simliClientRef.current = null;
+      activeSessionKeyRef.current = "";
       audioContextSourceAttached.current = false;
       await stopSimliClient(prevClient);
     }
 
-    // Check if superseded while stopping
-    if (connectionSeqRef.current !== seq) {
-      isConnectingRef.current = false;
-      return;
-    }
-
     try {
       const { SimliClient, LogLevel } = await import("simli-client");
-      const tokenRes = await api.getSimliToken(activeAvatar.id, faceId);
-
-      // Check if superseded during async token fetch
-      if (connectionSeqRef.current !== seq) {
-        isConnectingRef.current = false;
-        return;
-      }
+      const tokenRes = await api.getSimliToken(activeAvatar.id, targetFaceParam);
 
       if (!tokenRes?.session_token) {
         throw new Error("No session token received from Simli");
@@ -235,13 +224,11 @@ function CallContent() {
           LogLevel.INFO
         );
 
-        // Store reference immediately so cleanup can cancel if component unmounts
         simliClientRef.current = client;
+        activeSessionKeyRef.current = sessionKey;
 
         client.on("start", () => {
-          if (connectionSeqRef.current !== seq) return;
           console.log("[Simli] WebRTC 16:9 Stream Started!");
-          currentConnectedKeyRef.current = sessionKey;
           setIsSimliConnected(true);
           setIsSimliConnecting(false);
           isConnectingRef.current = false;
@@ -249,7 +236,6 @@ function CallContent() {
         });
 
         client.on("stop", () => {
-          if (connectionSeqRef.current !== seq) return;
           console.log("[Simli] WebRTC Stream stopped");
           setIsSimliConnected(false);
           setIsSimliConnecting(false);
@@ -258,12 +244,10 @@ function CallContent() {
         });
 
         client.on("speaking", () => {
-          if (connectionSeqRef.current !== seq) return;
           setIsSpeaking(true);
         });
 
         client.on("silent", () => {
-          if (connectionSeqRef.current !== seq) return;
           setIsSpeaking(false);
         });
 
@@ -272,7 +256,6 @@ function CallContent() {
           if (errMsg.includes("Client initiated disconnect") || errMsg.includes("disconnect")) {
             return;
           }
-          if (connectionSeqRef.current !== seq) return;
           console.warn("[Simli] WebRTC notice:", errMsg);
           setIsSimliConnected(false);
           setIsSimliConnecting(false);
@@ -285,7 +268,6 @@ function CallContent() {
           if (errMsg.includes("Client initiated disconnect") || errMsg.includes("disconnect")) {
             return;
           }
-          if (connectionSeqRef.current !== seq) return;
           console.warn("[Simli] Startup notice:", errMsg);
           setIsSimliConnected(false);
           setIsSimliConnecting(false);
@@ -294,13 +276,6 @@ function CallContent() {
         });
 
         await client.start();
-
-        // If superseded while starting, cleanly stop
-        if (connectionSeqRef.current !== seq) {
-          await stopSimliClient(client);
-          isConnectingRef.current = false;
-          return;
-        }
 
         // Attach companion audio element for automatic lip-sync
         if (companionAudioRef.current && !audioContextSourceAttached.current) {
@@ -314,38 +289,51 @@ function CallContent() {
       }
     } catch (err) {
       const errMsg = err?.message || String(err);
-      if (errMsg.includes("Client initiated disconnect") || errMsg.includes("disconnect")) {
-        isConnectingRef.current = false;
-        return;
-      }
-      if (connectionSeqRef.current === seq) {
+      if (!errMsg.includes("Client initiated disconnect") && !errMsg.includes("disconnect")) {
         console.warn("Simli WebRTC initialization notice:", err);
-        setIsSimliConnected(false);
-        setCallStatus("Interactive Mode");
       }
+      setIsSimliConnected(false);
+      setCallStatus("Interactive Mode");
     } finally {
-      if (connectionSeqRef.current === seq) {
-        setIsSimliConnecting(false);
-        isConnectingRef.current = false;
-      }
+      setIsSimliConnecting(false);
+      isConnectingRef.current = false;
     }
   };
 
-  // Start Simli when avatar is loaded
+  // Start Simli when avatar is loaded (debounced to avoid React StrictMode duplicate start)
   useEffect(() => {
-    if (activeAvatar) {
-      initSimliSession(selectedFaceId);
-    }
+    let isCancelled = false;
+    const timer = setTimeout(() => {
+      if (!isCancelled && activeAvatar?.id) {
+        initSimliSession(selectedFaceId);
+      }
+    }, 250);
+
     return () => {
-      connectionSeqRef.current += 1;
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeAvatar?.id, selectedFaceId]);
+
+  // Teardown when component completely unmounts or before page refresh/leave
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (simliClientRef.current) {
+        stopSimliClient(simliClientRef.current);
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       if (simliClientRef.current) {
         const client = simliClientRef.current;
         simliClientRef.current = null;
+        activeSessionKeyRef.current = "";
         stopSimliClient(client);
       }
-      currentConnectedKeyRef.current = "";
     };
-  }, [activeAvatar?.id, selectedFaceId]);
+  }, []);
 
   // 4. Speech Recognition Setup (Web Speech API)
   const startListening = () => {
@@ -490,6 +478,7 @@ function CallContent() {
     if (simliClientRef.current) {
       const client = simliClientRef.current;
       simliClientRef.current = null;
+      activeSessionKeyRef.current = "";
       await stopSimliClient(client);
     }
     if (recognitionRef.current) {
@@ -499,6 +488,12 @@ function CallContent() {
     }
     router.push(activeAvatar ? `/chat?avatarId=${activeAvatar.id}` : "/chat");
   };
+
+  // Available faces to display
+  const facesList = [
+    { id: "custom", name: `${activeAvatar?.name || "Companion"} (Your Avatar)` },
+    ...DEFAULT_SIMLI_FACES,
+  ];
 
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-[#0D0D0D] text-[#FAFAFA] flex flex-col relative select-none">
@@ -564,11 +559,11 @@ function CallContent() {
             </button>
 
             {showFaceMenu && (
-              <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-[#0D0D0D]/95 border border-[#A58CF4]/30 shadow-2xl p-1.5 z-50 backdrop-blur-2xl">
+              <div className="absolute right-0 mt-2 w-52 rounded-2xl bg-[#0D0D0D]/95 border border-[#A58CF4]/30 shadow-2xl p-1.5 z-50 backdrop-blur-2xl">
                 <div className="text-[10px] text-[#A58CF4] font-semibold px-2 py-1 uppercase tracking-wider">
-                  Simli 16:9 Faces
+                  Select Avatar Face
                 </div>
-                {DEFAULT_SIMLI_FACES.map((face) => (
+                {facesList.map((face) => (
                   <button
                     key={face.id}
                     onClick={() => {
@@ -581,9 +576,9 @@ function CallContent() {
                         : "text-[rgba(250,250,250,0.7)] hover:bg-[#433075]/40 hover:text-[#FAFAFA]"
                     }`}
                   >
-                    <span>{face.name}</span>
+                    <span className="truncate">{face.name}</span>
                     {selectedFaceId === face.id && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <Check size={12} className="text-emerald-400 shrink-0" />
                     )}
                   </button>
                 ))}
@@ -616,8 +611,8 @@ function CallContent() {
         ) : (
           <>
             {/* 16:9 Cinematic Widescreen Avatar Frame */}
-            <div className="w-full max-w-4xl aspect-video max-h-[calc(100vh-215px)] min-h-[240px] relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#0A0A0F] border border-[#A58CF4]/30 shadow-[0_16px_70px_rgba(67,48,117,0.35)] flex items-center justify-center shrink">
-              {/* WebRTC Video Element (Always mounted for stream binding) */}
+            <div className="w-full max-w-[calc((100vh-215px)*16/9)] aspect-[16/9] max-h-[calc(100vh-215px)] min-h-[240px] relative rounded-2xl sm:rounded-3xl overflow-hidden bg-black border border-[#A58CF4]/30 shadow-[0_16px_70px_rgba(67,48,117,0.35)] flex items-center justify-center shrink mx-auto">
+              {/* WebRTC Video Element (Always mounted for stream binding, fills 16:9 frame) */}
               <video
                 ref={simliVideoRef}
                 autoPlay
@@ -627,33 +622,33 @@ function CallContent() {
                 }`}
               />
 
-              {/* Seamless Companion Photo Fallback / Idle Display */}
+              {/* Seamless Companion Photo Display: Fills 16:9 Frame Completely */}
               <div
-                className={`absolute inset-0 flex items-center justify-center bg-[#0D0D0D] transition-opacity duration-700 ${
+                className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${
                   isSimliConnected ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
                 }`}
               >
                 {photoUrl ? (
-                  <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-black">
-                    {/* Blurred background backdrop filling entire 16:9 width */}
+                  <div className="relative w-full h-full overflow-hidden bg-black">
+                    {/* Blurred background backdrop filling entire 16:9 widescreen */}
                     <img
                       src={photoUrl}
                       alt=""
-                      className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-55 scale-125 pointer-events-none"
+                      className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110 pointer-events-none"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/60 pointer-events-none" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(0,0,0,0.85)_100%)] pointer-events-none" />
-                    {/* Centered portrait image with gentle breathing pulse */}
+                    {/* Portrait image scaled with object-cover and centered at 65% to focus on face and shoulders */}
                     <img
                       src={photoUrl}
                       alt={activeAvatar?.name || "Companion"}
-                      className={`relative max-h-full max-w-full object-contain rounded-2xl shadow-2xl z-10 transition-transform duration-1000 ${
-                        isSpeaking ? "scale-[1.02]" : "scale-100 animate-pulse"
+                      className={`relative w-full h-full object-cover object-[center_65%] transition-transform duration-1000 ${
+                        isSpeaking ? "scale-[1.03]" : "scale-100 animate-pulse"
                       }`}
                     />
+                    {/* Subtle cinematic gradient vignette */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-3 text-center p-6">
+                  <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
                     <div className="w-20 h-20 rounded-full bg-[#433075]/30 border border-[#A58CF4]/40 flex items-center justify-center text-[#A58CF4]">
                       <User size={36} />
                     </div>
@@ -675,10 +670,10 @@ function CallContent() {
                 />
                 <span>
                   {isSimliConnected
-                    ? "16:9 WebRTC Live Stream"
+                    ? "16:9 Live Stream Active"
                     : isSimliConnecting
-                    ? "Connecting Simli Stream..."
-                    : "Real-time Ready"}
+                    ? "Connecting Live Avatar..."
+                    : "Interactive 16:9 Ready"}
                 </span>
               </div>
 
