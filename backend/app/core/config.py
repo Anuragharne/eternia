@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     # ElevenLabs Voice AI
     ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_BACKUP_KEY: str = ""
     ELEVENLABS_MODEL: str = "eleven_multilingual_v2"
 
     # D-ID Talking Avatar API

@@ -176,13 +176,6 @@ class VoiceService:
         endpoint = f"{self.api_url}/{voice_id}"
         if fmt == "pcm_16000":
             endpoint = f"{endpoint}?output_format=pcm_16000"
-            headers = {
-                "xi-api-key": settings.ELEVENLABS_API_KEY,
-                "Content-Type": "application/json",
-                "Accept": "*/*",
-            }
-        else:
-            headers = self.get_headers()
 
         payload = {
             "text": clean_text,
@@ -195,36 +188,41 @@ class VoiceService:
             },
         }
 
-        logger.info(
-            "Synthesizing %d characters via ElevenLabs (format: %s, voice: %s, model: %s)...",
-            len(clean_text),
-            fmt,
-            voice_id,
-            model,
-        )
+        keys_to_try = [k for k in [settings.ELEVENLABS_API_KEY, settings.ELEVENLABS_BACKUP_KEY] if k]
+        last_error = None
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(endpoint, headers=headers, json=payload)
+        for key in keys_to_try:
+            if fmt == "pcm_16000":
+                h = {
+                    "xi-api-key": key,
+                    "Content-Type": "application/json",
+                    "Accept": "*/*",
+                }
+            else:
+                h = {
+                    "xi-api-key": key,
+                    "Content-Type": "application/json",
+                    "Accept": "audio/mpeg",
+                }
 
-            if resp.status_code != 200:
-                logger.error(
-                    "ElevenLabs API failed with status %d: %s",
-                    resp.status_code,
-                    resp.text,
-                )
-                raise RuntimeError(
-                    f"ElevenLabs TTS failed [{resp.status_code}]: {resp.text}"
-                )
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.post(endpoint, headers=h, json=payload)
+                    if resp.status_code == 200:
+                        audio_data = resp.content
+                        _AUDIO_CACHE[cache_key] = audio_data
+                        if len(_AUDIO_CACHE) > MAX_CACHE_SIZE:
+                            _AUDIO_CACHE.popitem(last=False)
+                        logger.info("Successfully synthesized %d bytes of audio.", len(audio_data))
+                        return audio_data
+                    else:
+                        last_error = f"Status {resp.status_code}: {resp.text}"
+                        logger.warning("ElevenLabs key %s failed: %s", key[:8], last_error)
+            except Exception as exc:
+                last_error = str(exc)
+                logger.warning("ElevenLabs key %s error: %s", key[:8], last_error)
 
-            audio_data = resp.content
-
-            # Update LRU cache
-            _AUDIO_CACHE[cache_key] = audio_data
-            if len(_AUDIO_CACHE) > MAX_CACHE_SIZE:
-                _AUDIO_CACHE.popitem(last=False)
-
-            logger.info("Successfully synthesized %d bytes of audio.", len(audio_data))
-            return audio_data
+        raise RuntimeError(f"ElevenLabs TTS failed: {last_error}")
 
     async def create_instant_voice_clone(
         self,
@@ -241,7 +239,6 @@ class VoiceService:
             raise ValueError("Audio sample cannot be empty.")
 
         url = "https://api.elevenlabs.io/v1/voices/add"
-        headers = {"xi-api-key": settings.ELEVENLABS_API_KEY}
         data = {
             "name": f"{name} (Eternia Clone)",
             "description": f"Personal instant voice clone for AI Companion {name}",
@@ -263,19 +260,28 @@ class VoiceService:
         ]
 
         logger.info("Submitting voice sample to ElevenLabs Instant Voice Clone API for %s...", name)
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            resp = await client.post(url, headers=headers, data=data, files=files)
-            if resp.status_code not in (200, 201):
-                logger.error("ElevenLabs voice cloning failed [%d]: %s", resp.status_code, resp.text)
-                raise RuntimeError(f"ElevenLabs voice cloning failed: {resp.text}")
+        keys_to_try = [k for k in [settings.ELEVENLABS_API_KEY, settings.ELEVENLABS_BACKUP_KEY] if k]
+        last_error = None
 
-            result = resp.json()
-            voice_id = result.get("voice_id")
-            if not voice_id:
-                raise RuntimeError(f"No voice_id in ElevenLabs response: {result}")
+        for key in keys_to_try:
+            headers = {"xi-api-key": key}
+            try:
+                async with httpx.AsyncClient(timeout=45.0) as client:
+                    resp = await client.post(url, headers=headers, data=data, files=files)
+                    if resp.status_code in (200, 201):
+                        result = resp.json()
+                        voice_id = result.get("voice_id")
+                        if voice_id:
+                            logger.info("Successfully created ElevenLabs voice clone: %s for %s", voice_id, name)
+                            return voice_id
+                    else:
+                        last_error = f"Status {resp.status_code}: {resp.text}"
+                        logger.warning("ElevenLabs clone attempt with key %s failed: %s", key[:8], last_error)
+            except Exception as exc:
+                last_error = str(exc)
+                logger.warning("ElevenLabs clone exception with key %s: %s", key[:8], last_error)
 
-            logger.info("Successfully created ElevenLabs voice clone: %s for %s", voice_id, name)
-            return voice_id
+        raise RuntimeError(f"ElevenLabs voice cloning failed: {last_error}")
 
     async def clone_voice(
         self,

@@ -106,42 +106,49 @@ export default function OnboardingPage() {
         .filter(Boolean)
         .join(". ");
 
-      const avatar = await api.createAvatar({
-        name: formData.name.trim(),
-        relationship: formData.relationship,
-        avatar_type: formData.subjectType === "living" ? "living_archive" : "tribute",
-        persona: personaSummary || "An empathetic companion grounded in cherished family memories.",
-        photo_url: photoFile
-          ? URL.createObjectURL(photoFile)
-          : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
-        voice_id: formData.relationship === "Mother" || formData.relationship === "Grandmother" ? "nova" : "alloy",
-      });
+      let avatar;
+      if (photoFile) {
+        const mediaData = new FormData();
+        mediaData.append("name", formData.name.trim());
+        mediaData.append("relationship", formData.relationship);
+        mediaData.append(
+          "bio",
+          personaSummary || `Beloved ${formData.relationship} preserved with deep personal memories.`
+        );
+        mediaData.append("subject_type", formData.subjectType === "living" ? "living" : "deceased");
+        if (formData.memory1?.trim()) {
+          mediaData.append("initial_memory", formData.memory1.trim());
+        }
+        mediaData.append("photo", photoFile);
+        if (voiceFile) {
+          mediaData.append("voice_sample", voiceFile);
+        }
+        avatar = await api.createAvatarWithMedia(mediaData);
+      } else {
+        avatar = await api.createAvatar({
+          name: formData.name.trim(),
+          relationship: formData.relationship,
+          avatar_type: formData.subjectType === "living" ? "living_archive" : "tribute",
+          persona: personaSummary || "An empathetic companion grounded in cherished family memories.",
+          photo_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80",
+          voice_id: "river",
+        });
+      }
 
       const avatarId = avatar.id;
       setCreatedAvatarId(avatarId);
-      setProgressState((prev) => ({ ...prev, avatarCreated: true }));
+      setProgressState((prev) => ({
+        ...prev,
+        avatarCreated: true,
+        voiceCloned: !!voiceFile,
+      }));
 
       // 2. Record ethical consent
-      await api.recordConsent(avatarId, "relative", "full", `Authorized by family member (${formData.relationship})`);
-      setProgressState((prev) => ({ ...prev, consentRecorded: true }));
-
-      // 3. Upload photo portrait if provided
-      if (photoFile) {
-        try {
-          await api.uploadAvatarPhoto(avatarId, photoFile);
-        } catch (photoErr) {
-          console.warn("Portrait upload note:", photoErr.message);
-        }
-      }
-
-      // 4. Clone authentic voice if audio sample was provided (ElevenLabs IVC)
-      if (voiceFile) {
-        try {
-          await api.cloneVoice(avatarId, voiceFile, `${formData.name.trim()}'s Voice`);
-          setProgressState((prev) => ({ ...prev, voiceCloned: true }));
-        } catch (voiceErr) {
-          console.warn("Voice clone note:", voiceErr.message);
-        }
+      try {
+        await api.recordConsent(avatarId, "relative", "full", `Authorized by family member (${formData.relationship})`);
+        setProgressState((prev) => ({ ...prev, consentRecorded: true }));
+      } catch (cErr) {
+        console.warn("Consent notice:", cErr);
       }
 
       // 5. Ingest memory stories

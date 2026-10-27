@@ -106,6 +106,12 @@ function VoiceContent() {
         setActiveAvatar(target);
 
         if (target) {
+          // Immediately display existing photo if available
+          const existingPhoto = target.photo_url || target.photo_s3_key || target.persona_config?.did_photo_url;
+          if (existingPhoto) {
+            setPhotoUrl(existingPhoto);
+          }
+
           // Fetch voice info
           try {
             const vInfo = await api.getVoiceInfo(target.id);
@@ -118,7 +124,9 @@ function VoiceContent() {
           try {
             const pRes = await api.getAvatarPhotoUrl(target.id);
             if (isMounted && pRes?.photo_url) {
-              setPhotoUrl(pRes.photo_url);
+              if (!existingPhoto || !pRes.photo_url.includes("534528741775")) {
+                setPhotoUrl(pRes.photo_url);
+              }
             }
           } catch (pErr) {
             console.warn("Photo fetch fallback:", pErr);
@@ -175,7 +183,10 @@ function VoiceContent() {
       const vInfo = await api.getVoiceInfo(target.id).catch(() => null);
       setVoiceInfo(vInfo);
       const pRes = await api.getAvatarPhotoUrl(target.id).catch(() => null);
-      if (pRes?.photo_url) setPhotoUrl(pRes.photo_url);
+      const currentPhoto = target.photo_url || target.photo_s3_key || target.persona_config?.did_photo_url;
+      if (pRes?.photo_url && (!currentPhoto || !pRes.photo_url.includes("534528741775"))) {
+        setPhotoUrl(pRes.photo_url);
+      }
 
       const greeting = `Hello! It is so wonderful to hear your voice. What would you like to reflect on together today?`;
       setSubtitle(greeting);

@@ -53,6 +53,7 @@ def get_voice_catalog(current_user: dict = Depends(get_current_user)):
     }
 
 
+import uuid
 from backend.app.api.routes.avatars import LOCAL_AVATARS_STORE
 
 
@@ -60,6 +61,7 @@ def _get_avatar_record(avatar_id: str) -> dict:
     db = get_supabase_admin_client()
     if db is not None:
         try:
+            uuid.UUID(str(avatar_id))
             res = db.table("avatars").select("*").eq("id", avatar_id).execute()
             if res.data:
                 return res.data[0]

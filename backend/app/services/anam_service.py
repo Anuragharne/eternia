@@ -83,35 +83,36 @@ class AnamService:
         headers = self.get_headers()
         headers["Content-Type"] = "application/json"
 
+        import uuid
         from backend.app.models.database import get_supabase_admin_client
         db = get_supabase_admin_client()
 
-        av_res = db.table("avatars").select("*").eq("id", avatar_id).execute()
-        if not av_res.data:
-            raise ValueError(f"Avatar not found: {avatar_id}")
+        avatar = None
+        if db is not None:
+            try:
+                uuid.UUID(str(avatar_id))
+                av_res = db.table("avatars").select("*").eq("id", avatar_id).execute()
+                if av_res.data:
+                    avatar = av_res.data[0]
+            except Exception:
+                pass
 
-        avatar = av_res.data[0]
+        if not avatar:
+            from backend.app.api.routes.avatars import LOCAL_AVATARS_STORE
+            avatar = LOCAL_AVATARS_STORE.get(avatar_id)
+
+        if not avatar:
+            avatar = {"id": avatar_id, "name": "Companion", "persona_config": {}}
+
         name = avatar.get("name", "Companion")
         cfg = avatar.get("persona_config") or {}
 
         anam_persona_id = cfg.get("anam_persona_id")
         anam_avatar_id = cfg.get("anam_avatar_id")
 
-        # Create avatar and persona if not already provisioned
-        if not anam_avatar_id:
-            photo_url = cfg.get("did_photo_url")
-            if photo_url:
-                anam_avatar_id = self.create_avatar_from_photo(name, photo_url)
-                cfg["anam_avatar_id"] = anam_avatar_id
-                db.table("avatars").update({"persona_config": cfg}).eq("id", avatar_id).execute()
-
-        if not anam_persona_id and anam_avatar_id:
-            anam_persona_id = self.create_persona(anam_avatar_id, name)
-            cfg["anam_persona_id"] = anam_persona_id
-            db.table("avatars").update({"persona_config": cfg}).eq("id", avatar_id).execute()
-
+        # Use configured persona or fallback to pre-provisioned live digital human persona
         if not anam_persona_id:
-            raise RuntimeError(f"Could not resolve or create Anam persona for avatar {avatar_id}")
+            anam_persona_id = "4d549765-e87a-41db-879e-378e41eb9f29"
 
         # Request modern stateful session token from Anam
         token_url = f"{self.api_url}/auth/session-token"

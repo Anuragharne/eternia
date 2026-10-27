@@ -20,10 +20,13 @@ import {
   Heart,
   Smile,
   User,
+  ChevronDown,
+  Plus,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
 import { AvatarPhotoUpload } from "../../components/chat/AvatarPhotoUpload";
+import CreateAvatarModal from "../../components/chat/CreateAvatarModal";
 
 function CallContent() {
   const searchParams = useSearchParams();
@@ -50,6 +53,8 @@ function CallContent() {
 
   // Modals & Text Input
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
+  const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
   const [textInput, setTextInput] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [callStatus, setCallStatus] = useState("Connecting to companion...");
@@ -99,6 +104,10 @@ function CallContent() {
         setActiveAvatar(target);
 
         if (target) {
+          const currentPhoto = target.photo_url || target.photo_s3_key || target.persona_config?.did_photo_url;
+          if (currentPhoto) {
+            setPhotoUrl(currentPhoto);
+          }
           try {
             const photoRes = await api.getAvatarPhotoUrl(target.id);
             if (isMounted && photoRes?.photo_url) {
@@ -134,6 +143,51 @@ function CallContent() {
       }
     };
   }, [avatarId]);
+
+  const switchAvatar = async (target) => {
+    if (!target || target.id === activeAvatar?.id) {
+      setShowAvatarDropdown(false);
+      return;
+    }
+    setShowAvatarDropdown(false);
+    setActiveAvatar(target);
+    const existingPhoto = target.photo_url || target.photo_s3_key || target.persona_config?.did_photo_url;
+    setPhotoUrl(existingPhoto || null);
+    hasGreetedRef.current = false;
+
+    // Stop current companion speech/stream
+    if (companionAudioRef.current) {
+      companionAudioRef.current.pause();
+    }
+    if (anamClientRef.current) {
+      const client = anamClientRef.current;
+      anamClientRef.current = null;
+      client.stopStreaming().catch(() => {});
+    }
+    setIsAnamConnected(false);
+    setIsAnamConnecting(false);
+    isConnectingRef.current = false;
+
+    router.replace(`/call?avatarId=${target.id}`, { scroll: false });
+
+    try {
+      const photoRes = await api.getAvatarPhotoUrl(target.id);
+      if (photoRes?.photo_url) {
+        setPhotoUrl(photoRes.photo_url);
+      }
+    } catch (e) {
+      console.warn("Photo fetch notice:", e);
+    }
+
+    setTimeout(() => {
+      initAnamSession();
+    }, 150);
+  };
+
+  const handleAvatarCreated = (newAvatar) => {
+    setAvatars((prev) => [newAvatar, ...prev]);
+    switchAvatar(newAvatar);
+  };
 
   // 3. Initialize Anam.ai 25fps Real-Time WebRTC Live Avatar
   const initAnamSession = async () => {
@@ -804,6 +858,14 @@ function CallContent() {
             setPhotoUrl(newUrl);
             setShowPhotoModal(false);
           }}
+        />
+      )}
+
+      {/* Create New Companion Modal */}
+      {showCreateAvatarModal && (
+        <CreateAvatarModal
+          onClose={() => setShowCreateAvatarModal(false)}
+          onCreated={handleAvatarCreated}
         />
       )}
     </div>

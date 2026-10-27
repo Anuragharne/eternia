@@ -101,13 +101,28 @@ def create_avatar(
     return AvatarResponse(**data)
 
 
+from backend.app.core.config import settings
+
+
+def _normalize_avatar_item(item: dict) -> dict:
+    """Ensure photo_url is resolved to a complete public URL."""
+    normalized = dict(item)
+    cfg = normalized.get("persona_config") or {}
+    p_url = cfg.get("did_photo_url") or normalized.get("photo_url") or normalized.get("photo_s3_key")
+    if p_url and not p_url.startswith("http") and not p_url.startswith("data:"):
+        if settings.SUPABASE_URL:
+            p_url = f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/avatar-photos/{p_url.lstrip('/')}"
+    normalized["photo_url"] = p_url
+    return normalized
+
+
 @router.get("", response_model=List[AvatarResponse])
 def list_avatars(
     current_user: dict = Depends(get_current_user),
 ):
     """List all active avatars belonging to the user, with local fallback."""
     db = get_supabase_admin_client()
-    avatars_dict = {k: v for k, v in LOCAL_AVATARS_STORE.items() if v.get("is_active", True)}
+    avatars_dict = {k: _normalize_avatar_item(v) for k, v in LOCAL_AVATARS_STORE.items() if v.get("is_active", True)}
 
     if db is not None:
         try:
@@ -120,8 +135,9 @@ def list_avatars(
             )
             if res.data:
                 for item in res.data:
-                    avatars_dict[item["id"]] = item
-                    LOCAL_AVATARS_STORE[item["id"]] = item
+                    norm = _normalize_avatar_item(item)
+                    avatars_dict[item["id"]] = norm
+                    LOCAL_AVATARS_STORE[item["id"]] = norm
         except Exception as exc:
             logger.warning("Supabase list avatars notice, using local store: %s", exc)
 
@@ -145,12 +161,12 @@ def get_avatar(
                 .execute()
             )
             if res.data:
-                return AvatarResponse(**res.data[0])
+                return AvatarResponse(**_normalize_avatar_item(res.data[0]))
         except Exception:
             pass
 
     if avatar_id in LOCAL_AVATARS_STORE and LOCAL_AVATARS_STORE[avatar_id].get("is_active", True):
-        return AvatarResponse(**LOCAL_AVATARS_STORE[avatar_id])
+        return AvatarResponse(**_normalize_avatar_item(LOCAL_AVATARS_STORE[avatar_id]))
 
     raise AvatarNotFoundError(avatar_id)
 
@@ -329,7 +345,8 @@ async def create_avatar_with_media(
         except Exception as exc:
             logger.warning("Supabase save notice, stored locally: %s", exc)
 
-    LOCAL_AVATARS_STORE[avatar_id] = data
+    norm_data = _normalize_avatar_item(data)
+    LOCAL_AVATARS_STORE[avatar_id] = norm_data
 
     # 6. Ingest initial memory if provided
     if initial_memory and initial_memory.strip():
@@ -343,7 +360,7 @@ async def create_avatar_with_media(
         except Exception as m_err:
             logger.warning("Initial memory preservation notice: %s", m_err)
 
-    return AvatarResponse(**data)
+    return AvatarResponse(**norm_data)
 
 
 @router.post("/{avatar_id}/clone-voice")

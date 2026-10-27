@@ -35,6 +35,7 @@ class AvatarResponse(AvatarBase):
     voice_status: Literal["none", "placeholder", "cloned"] = "none"
     consent_status: Literal["pending", "verified", "revoked"] = "pending"
     photo_s3_key: Optional[str] = None
+    photo_url: Optional[str] = None
     voice_s3_key: Optional[str] = None
     memory_count: int = 0
     persona_config: Dict[str, Any] = Field(default_factory=dict)

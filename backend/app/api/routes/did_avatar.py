@@ -221,7 +221,12 @@ async def get_avatar_photo_url(
         raise AvatarNotFoundError(avatar_id)
 
     persona_config = avatar.get("persona_config") or {}
-    photo_url = persona_config.get("did_photo_url") or avatar.get("photo_s3_key")
+    photo_url = persona_config.get("did_photo_url") or avatar.get("photo_url") or avatar.get("photo_s3_key")
+
+    # If photo_url is a relative Supabase storage key, resolve to full public URL
+    if photo_url and not photo_url.startswith("http") and not photo_url.startswith("data:"):
+        if settings.SUPABASE_URL:
+            photo_url = f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/avatar-photos/{photo_url.lstrip('/')}"
 
     if not photo_url:
         # Default placeholder portrait
