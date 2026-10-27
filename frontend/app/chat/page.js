@@ -22,6 +22,7 @@ import {
   Loader2,
   Square,
   Trash2,
+  Video,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -751,8 +752,17 @@ function ChatContent() {
                     </p>
                   </div>
                 </div>
-                {/* Header Actions */}
+                {/* Header Actions: Video Call, Stories Archive, Add Memory, Delete Companion */}
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Link
+                    href={`/call?avatarId=${activeAvatar.id}`}
+                    className="btn btn-primary btn-sm"
+                    style={{ fontSize: 11, padding: "5px 12px", display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}
+                    title={`Start live 16:9 interactive video call with ${activeAvatar.name}`}
+                  >
+                    <Video size={13} />
+                    <span style={{ fontWeight: 600 }}>Video Call</span>
+                  </Link>
                   <button
                     onClick={() => openStoriesModal()}
                     className="btn btn-ghost btn-sm"

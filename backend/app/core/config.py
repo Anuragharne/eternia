@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     SIMLI_API_URL: str = "https://api.simli.ai"
     SIMLI_DEFAULT_FACE_ID: str = "03ce3ee8-db97-4150-a333-8f643d48fee9"
 
+    # Anam.ai Live Interactive Avatar API
+    ANAM_API_KEY: str = ""
+    ANAM_API_URL: str = "https://api.anam.ai/v1"
+
+
     # CORS
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 

@@ -9,6 +9,7 @@ from backend.app.api.routes.export import router as export_router
 from backend.app.api.routes.voice import router as voice_router
 from backend.app.api.routes.did_avatar import router as did_avatar_router
 from backend.app.api.routes.simli import router as simli_router
+from backend.app.api.routes.anam import router as anam_router
 
 api_router = APIRouter()
 api_router.include_router(avatars_router)
@@ -19,5 +20,6 @@ api_router.include_router(export_router)
 api_router.include_router(voice_router)
 api_router.include_router(did_avatar_router)
 api_router.include_router(simli_router)
+api_router.include_router(anam_router)
 
 __all__ = ["api_router"]
