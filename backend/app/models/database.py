@@ -8,10 +8,12 @@ _supabase_client: Optional[Client] = None
 _supabase_admin_client: Optional[Client] = None
 
 
-def get_supabase_client() -> Client:
+def get_supabase_client() -> Optional[Client]:
     """Get or create singleton Supabase client with anon key."""
     global _supabase_client
     if _supabase_client is None:
+        if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
+            return None
         _supabase_client = create_client(
             settings.SUPABASE_URL,
             settings.SUPABASE_ANON_KEY,
@@ -19,10 +21,12 @@ def get_supabase_client() -> Client:
     return _supabase_client
 
 
-def get_supabase_admin_client() -> Client:
+def get_supabase_admin_client() -> Optional[Client]:
     """Get or create singleton Supabase client with service role key (admin bypass)."""
     global _supabase_admin_client
     if _supabase_admin_client is None:
+        if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
+            return None
         _supabase_admin_client = create_client(
             settings.SUPABASE_URL,
             settings.SUPABASE_SERVICE_ROLE_KEY,

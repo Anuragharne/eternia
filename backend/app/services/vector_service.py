@@ -16,12 +16,14 @@ class VectorService:
         self.collection_name = settings.QDRANT_COLLECTION
         if client:
             self.client = client
-        else:
+        elif settings.QDRANT_URL:
             self.client = QdrantClient(
                 url=settings.QDRANT_URL,
                 api_key=settings.QDRANT_API_KEY,
                 timeout=20,
             )
+        else:
+            self.client = None
 
     def setup_collection(self) -> bool:
         """Create the memories collection and payload indexes if not already present."""

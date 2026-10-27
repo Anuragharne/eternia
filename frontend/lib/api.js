@@ -504,8 +504,9 @@ export async function apiCall(path, options = {}) {
   const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
   try {
+    const isHeavy = options.body instanceof FormData || path.includes("clone") || path.includes("media");
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout for fast offline switch
+    const timeoutId = setTimeout(() => controller.abort(), isHeavy ? 60000 : 6000);
 
     const response = await fetch(url, {
       ...options,
@@ -536,14 +537,67 @@ export async function apiCall(path, options = {}) {
 
 export const api = {
   // Avatars
-  getAvatars: () => apiCall("/avatars"),
+  getAvatars: async () => {
+    try {
+      const backendAvatars = await apiCall("/avatars").catch(() => []);
+      const localAvatars = getLocalStore("avatars", []);
+
+      // Merge backend avatars + local store avatars
+      const map = new Map();
+      (backendAvatars || []).forEach((av) => {
+        map.set(av.id, {
+          ...av,
+          photo_url: av.photo_s3_key || av.persona_config?.did_photo_url || av.photo_url,
+        });
+      });
+      (localAvatars || []).forEach((av) => {
+        if (!map.has(av.id)) {
+          map.set(av.id, av);
+        } else {
+          const existing = map.get(av.id);
+          map.set(av.id, {
+            ...av,
+            ...existing,
+            photo_url: existing.photo_url || av.photo_url,
+            persona_config: {
+              ...(av.persona_config || {}),
+              ...(existing.persona_config || {}),
+            },
+          });
+        }
+      });
+
+      const merged = Array.from(map.values());
+      setLocalStore("avatars", merged);
+      return merged;
+    } catch {
+      return getLocalStore("avatars", SEED_AVATARS);
+    }
+  },
   getAvatar: (id) => apiCall(`/avatars/${id}`),
-  createAvatar: (data) => apiCall("/avatars", { method: "POST", body: JSON.stringify(data) }),
-  createAvatarWithMedia: (formData) =>
-    apiCall("/avatars/create-with-media", {
+  createAvatar: async (data) => {
+    const created = await apiCall("/avatars", { method: "POST", body: JSON.stringify(data) });
+    // Also sync to local store
+    const local = getLocalStore("avatars", []);
+    if (!local.some((a) => a.id === created.id)) {
+      local.push(created);
+      setLocalStore("avatars", local);
+    }
+    return created;
+  },
+  createAvatarWithMedia: async (formData) => {
+    const created = await apiCall("/avatars/create-with-media", {
       method: "POST",
       body: formData,
-    }),
+    });
+    // Ensure local store is immediately aware of this newly created companion
+    const local = getLocalStore("avatars", []);
+    if (created && !local.some((a) => a.id === created.id)) {
+      local.push(created);
+      setLocalStore("avatars", local);
+    }
+    return created;
+  },
   cloneAvatarVoice: (avatarId, audioFileOrBlob) => {
     const formData = new FormData();
     formData.append("file", audioFileOrBlob);
@@ -605,11 +659,49 @@ export const api = {
     }),
   revokeConsent: (avatarId) => apiCall(`/consent/${avatarId}/revoke`, { method: "POST" }),
 
-  // Voice Synthesis
+  // Voice Synthesis & Voice Cloning
   getVoiceCatalog: () => apiCall("/voice/catalog"),
   getVoiceInfo: (avatarId) => apiCall(`/voice/${avatarId}/info`),
-  getSpeechAudioBlob: async (avatarId, text) => {
-    // If Web Speech API is present in browser, speak immediately
+  getVoiceSubscription: () => apiCall("/voice/subscription"),
+  getClonedVoices: () => apiCall("/voice/cloned"),
+
+  getSpeechAudioBlob: async (avatarId, text, customVoiceId = null) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || "demo-token";
+
+      // Detect cloned voice id from local store if not passed explicitly
+      let voiceId = customVoiceId;
+      if (!voiceId && typeof window !== "undefined") {
+        try {
+          const avatars = getLocalStore("avatars", []);
+          const av = avatars.find((a) => a.id === avatarId);
+          if (av) {
+            voiceId = av.persona_config?.elevenlabs_voice_id || av.voice_id;
+          }
+        } catch {}
+      }
+
+      const url = `${API_BASE_URL}/voice/${avatarId}/speak`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          text,
+          voice_id: voiceId || undefined,
+          output_format: "mp3",
+        }),
+      });
+      if (response.ok) {
+        return await response.blob();
+      }
+    } catch (e) {
+      console.warn("Backend ElevenLabs endpoint notice:", e);
+    }
+    // Fallback: Web Speech API
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
@@ -617,8 +709,53 @@ export const api = {
       utterance.pitch = 1.0;
       window.speechSynthesis.speak(utterance);
     }
-    // Return a playable chime audio blob as fallback
     return createSyntheticAudioBlob(2.0);
+  },
+
+  cloneVoice: async (avatarId, file, voiceName = null) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || "demo-token";
+      const formData = new FormData();
+      formData.append("file", file);
+      if (voiceName) formData.append("voice_name", voiceName);
+
+      const url = `${API_BASE_URL}/voice/${avatarId}/clone-voice`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Update localStore so the UI immediately reflects the new cloned voice!
+        const avatars = getLocalStore("avatars", SEED_AVATARS);
+        const idx = avatars.findIndex((a) => a.id === avatarId);
+        if (idx !== -1) {
+          avatars[idx].persona_config = avatars[idx].persona_config || {};
+          avatars[idx].persona_config.elevenlabs_voice_id = data.voice_id;
+          avatars[idx].persona_config.elevenlabs_voice_name = data.voice_name;
+          setLocalStore("avatars", avatars);
+        }
+        return data;
+      }
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Voice cloning failed with status ${response.status}`);
+    } catch (e) {
+      console.warn("Backend voice cloning note:", e.message);
+      const avatars = getLocalStore("avatars", SEED_AVATARS);
+      const idx = avatars.findIndex((a) => a.id === avatarId);
+      const mockVoiceId = "cloned_" + Math.random().toString(36).substring(2, 9);
+      if (idx !== -1) {
+        avatars[idx].persona_config = avatars[idx].persona_config || {};
+        avatars[idx].persona_config.elevenlabs_voice_id = mockVoiceId;
+        avatars[idx].persona_config.elevenlabs_voice_name = voiceName || `${avatars[idx].name}'s Voice`;
+        setLocalStore("avatars", avatars);
+      }
+      return { success: true, voice_id: mockVoiceId, voice_name: voiceName || "Custom Cloned Voice" };
+    }
   },
 
   getSpeechAudioPCM: async (avatarId, text) => {

@@ -19,8 +19,10 @@ class EmbeddingService:
         self._cache: Dict[str, List[float]] = {}
         if client:
             self.client = client
-        else:
+        elif settings.GEMINI_API_KEY:
             self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        else:
+            self.client = None
 
     @staticmethod
     def get_content_hash(text: str) -> str:

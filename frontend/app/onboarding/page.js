@@ -55,6 +55,7 @@ export default function OnboardingPage() {
   const [progressState, setProgressState] = useState({
     avatarCreated: false,
     consentRecorded: false,
+    voiceCloned: false,
     memoriesIngested: false,
     ready: false,
   });
@@ -133,7 +134,17 @@ export default function OnboardingPage() {
         }
       }
 
-      // 4. Ingest memory stories
+      // 4. Clone authentic voice if audio sample was provided (ElevenLabs IVC)
+      if (voiceFile) {
+        try {
+          await api.cloneVoice(avatarId, voiceFile, `${formData.name.trim()}'s Voice`);
+          setProgressState((prev) => ({ ...prev, voiceCloned: true }));
+        } catch (voiceErr) {
+          console.warn("Voice clone note:", voiceErr.message);
+        }
+      }
+
+      // 5. Ingest memory stories
       const memoryPromises = [];
       if (formData.memory1?.trim()) {
         memoryPromises.push(api.addMemory(avatarId, formData.memory1.trim(), "story", null, ["tradition"]));
@@ -690,6 +701,9 @@ export default function OnboardingPage() {
                 {[
                   { label: "Profile and persona initialization", done: progressState.avatarCreated },
                   { label: "Append-only ethical consent logged", done: progressState.consentRecorded },
+                  ...(voiceFile
+                    ? [{ label: "Voice tone cloned via ElevenLabs IVC", done: progressState.voiceCloned }]
+                    : []),
                   { label: "Memories parsed & vector embedded", done: progressState.memoriesIngested },
                   { label: "Sanctuary conversation engine ready", done: progressState.ready },
                 ].map((item, idx) => (

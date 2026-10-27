@@ -566,12 +566,22 @@ function CallContent() {
                             : "hover:bg-[#433075]/30 text-[rgba(250,250,250,0.8)] hover:text-white"
                         }`}
                       >
-                        <div className="w-6 h-6 rounded-full bg-[#433075]/40 border border-[#A58CF4]/30 flex items-center justify-center text-[10px] font-semibold text-[#A58CF4]">
-                          {av.name.charAt(0)}
+                        <div className="w-6 h-6 rounded-full bg-[#433075]/40 border border-[#A58CF4]/30 flex items-center justify-center text-[10px] font-semibold text-[#A58CF4] overflow-hidden shrink-0">
+                          {av.photo_url ? (
+                            <img src={av.photo_url} alt={av.name} className="w-full h-full object-cover" />
+                          ) : (
+                            av.name.charAt(0)
+                          )}
                         </div>
-                        <span className="flex-1 truncate">{av.name}</span>
-                        {av.relationship && (
-                          <span className="text-[10px] text-[#A58CF4]/70">{av.relationship}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate font-medium">{av.name}</div>
+                          <div className="text-[10px] text-[#A58CF4]/70 truncate">
+                            {av.relationship || "Companion"}
+                            {av.voice_status === "cloned" || av.persona_config?.elevenlabs_voice_id ? " · 🎙️ Cloned" : ""}
+                          </div>
+                        </div>
+                        {av.id === activeAvatar.id && (
+                          <div className="w-2 h-2 rounded-full bg-[#FFD166] shrink-0" />
                         )}
                       </button>
                     ))}
@@ -754,6 +764,7 @@ function CallContent() {
                     &ldquo;{transcript}&rdquo;
                   </p>
                 )}
+              </div>
             </div>
           </div>
         </div>

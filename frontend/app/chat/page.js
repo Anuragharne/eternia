@@ -23,6 +23,7 @@ import {
   Square,
   Trash2,
   Video,
+  ChevronDown,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -39,6 +40,7 @@ function ChatContent() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [loadingAvatars, setLoadingAvatars] = useState(true);
+  const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
 
   // Voice states
   const [isRecording, setIsRecording] = useState(false);
@@ -715,45 +717,143 @@ function ChatContent() {
                   borderBottom: "1px solid var(--border-0)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ position: "relative" }}>
                   <div
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: "50%",
-                      background: "linear-gradient(135deg, #210B2C, #3B184C, #BC96E6)",
-                      border: "1px solid rgba(255, 209, 102, 0.5)",
-                      color: "#FFD166",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      boxShadow: "0 0 12px rgba(255, 209, 102, 0.35)",
-                    }}
+                    onClick={() => setShowAvatarDropdown(!showAvatarDropdown)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "4px 8px", borderRadius: 12, transition: "background 150ms" }}
+                    className="hover:bg-[#3B184C]/40"
+                    title="Click to Switch Companion"
                   >
-                    {activeAvatar.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--text-0)", fontFamily: "Outfit, sans-serif" }}>
-                      {activeAvatar.name}
-                    </h3>
-                    <p style={{ fontSize: 11, color: "var(--text-2)", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span className="glow-dot" style={{ width: 6, height: 6 }} />
-                      <span>{activeAvatar.relationship} · {activeAvatar.memory_count || 0} stories</span>
-                      {voiceInfo && (
-                        <>
-                          <span style={{ color: "var(--text-2)" }}>·</span>
-                          <span style={{ color: "var(--lavender)", display: "flex", alignItems: "center", gap: 4, fontWeight: 500 }}>
-                            <Volume2 size={11} /> {voiceInfo.voice_name} Voice
-                          </span>
-                        </>
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: "50%",
+                        background: "linear-gradient(135deg, #210B2C, #3B184C, #BC96E6)",
+                        border: "1px solid rgba(255, 209, 102, 0.5)",
+                        color: "#FFD166",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        boxShadow: "0 0 12px rgba(255, 209, 102, 0.35)",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {activeAvatar.photo_url ? (
+                        <img src={activeAvatar.photo_url} alt={activeAvatar.name} className="w-full h-full object-cover" />
+                      ) : (
+                        activeAvatar.name.charAt(0).toUpperCase()
                       )}
-                    </p>
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--text-0)", fontFamily: "Outfit, sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+                        <span>{activeAvatar.name}</span>
+                        <ChevronDown size={14} style={{ color: "var(--sunglow)" }} />
+                      </h3>
+                      <p style={{ fontSize: 11, color: "var(--text-2)", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span className="glow-dot" style={{ width: 6, height: 6 }} />
+                        <span>{activeAvatar.relationship} · {activeAvatar.memory_count || 0} stories</span>
+                        {(voiceInfo || activeAvatar.voice_status === "cloned" || activeAvatar.persona_config?.elevenlabs_voice_id) && (
+                          <>
+                            <span style={{ color: "var(--text-2)" }}>·</span>
+                            <span style={{ color: "var(--sunglow)", display: "flex", alignItems: "center", gap: 4, fontWeight: 500 }}>
+                              <Volume2 size={11} />
+                              {activeAvatar.voice_status === "cloned" || activeAvatar.persona_config?.elevenlabs_voice_id
+                                ? "Cloned Voice"
+                                : `${voiceInfo?.voice_name || "Neural"} Voice`}
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Companion Switcher Dropdown */}
+                  {showAvatarDropdown && (
+                    <div
+                      className="absolute top-full left-0 mt-2 w-64 rounded-2xl p-2 z-50 shadow-2xl"
+                      style={{
+                        background: "var(--surface-0)",
+                        border: "1px solid var(--border-1)",
+                        boxShadow: "0 20px 60px rgba(18, 5, 24, 0.8)",
+                      }}
+                    >
+                      <div className="text-[10px] uppercase tracking-wider px-3 py-1 font-bold" style={{ color: "var(--sunglow)" }}>
+                        Choose Companion
+                      </div>
+                      <div className="max-h-56 overflow-y-auto space-y-1 my-1 pr-1">
+                        {avatars.map((av) => (
+                          <button
+                            key={av.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveAvatar(av);
+                              setShowAvatarDropdown(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[12px] transition-all cursor-pointer"
+                            style={{
+                              background: av.id === activeAvatar.id ? "rgba(255, 209, 102, 0.15)" : "transparent",
+                              border: av.id === activeAvatar.id ? "1px solid var(--border-sunglow)" : "1px solid transparent",
+                              color: av.id === activeAvatar.id ? "#FAF6FF" : "var(--text-1)",
+                            }}
+                          >
+                            <div
+                              className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden"
+                              style={{
+                                background: "linear-gradient(135deg, #210B2C, #3B184C)",
+                                border: "1px solid rgba(255, 209, 102, 0.4)",
+                                color: "var(--sunglow)",
+                              }}
+                            >
+                              {av.photo_url ? (
+                                <img src={av.photo_url} alt={av.name} className="w-full h-full object-cover" />
+                              ) : (
+                                av.name.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold truncate text-[12.5px] text-[#FAF6FF]">{av.name}</div>
+                              <div className="text-[10px] text-[var(--text-2)] truncate">
+                                {av.relationship || "Companion"}
+                                {av.voice_status === "cloned" || av.persona_config?.elevenlabs_voice_id ? " · 🎙️ Cloned" : ""}
+                              </div>
+                            </div>
+                            {av.id === activeAvatar.id && (
+                              <div className="w-2 h-2 rounded-full bg-[#FFD166] shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 mt-1" style={{ borderTop: "1px solid var(--border-0)" }}>
+                        <Link
+                          href="/onboarding"
+                          className="w-full btn btn-primary btn-sm flex items-center justify-center gap-1.5 py-1.5"
+                          style={{ textDecoration: "none" }}
+                        >
+                          <Plus size={13} />
+                          <span>+ New Companion</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {/* Header Actions: Video Call, Stories Archive, Add Memory, Delete Companion */}
+
+                {/* Header Actions: Voice Call, Video Call, Stories Archive, Add Memory, Delete Companion */}
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Link
+                    href={`/voice?avatarId=${activeAvatar.id}`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 11, padding: "5px 12px", display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}
+                    title={`Start live voice call with ${activeAvatar.name}`}
+                  >
+                    <Volume2 size={13} style={{ color: "var(--sunglow)" }} />
+                    <span style={{ fontWeight: 600 }}>Voice Call</span>
+                  </Link>
+
                   <Link
                     href={`/call?avatarId=${activeAvatar.id}`}
                     className="btn btn-primary btn-sm"

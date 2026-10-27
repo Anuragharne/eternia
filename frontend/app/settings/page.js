@@ -20,6 +20,13 @@ import {
   Lock,
   Layers,
   Activity,
+  Volume2,
+  Mic,
+  Play,
+  Check,
+  Upload,
+  Loader2,
+  Music,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../lib/api";
@@ -29,9 +36,21 @@ export default function SettingsPage() {
   const router = useRouter();
   const { user, profile } = useAuth();
 
-  const [activeTab, setActiveTab] = useState("profile"); // 'profile' | 'companions' | 'data' | 'danger'
+  const [activeTab, setActiveTab] = useState("profile"); // 'profile' | 'voice' | 'companions' | 'data' | 'danger'
   const [avatars, setAvatars] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Voice Cloning State
+  const [voiceSub, setVoiceSub] = useState(null);
+  const [selectedAvatarId, setSelectedAvatarId] = useState("");
+  const [cloneFile, setCloneFile] = useState(null);
+  const [cloneName, setCloneName] = useState("");
+  const [cloningVoice, setCloningVoice] = useState(false);
+  const [cloneSuccess, setCloneSuccess] = useState("");
+  const [cloneError, setCloneError] = useState("");
+  const [testText, setTestText] = useState("Hello, this is my authentic cloned voice speaking to you inside Eternia.");
+  const [testingAudio, setTestingAudio] = useState(false);
+  const [testAudioUrl, setTestAudioUrl] = useState(null);
 
   // Export state
   const [exporting, setExporting] = useState(false);
@@ -72,14 +91,69 @@ export default function SettingsPage() {
       try {
         const list = await api.getAvatars();
         setAvatars(list || []);
+        if (list && list.length > 0) {
+          setSelectedAvatarId(list[0].id);
+        }
+        const sub = await api.getVoiceSubscription();
+        setVoiceSub(sub);
       } catch (err) {
-        console.error("Failed to fetch avatars:", err);
+        console.error("Failed to fetch settings data:", err);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
   }, []);
+
+  const handleCloneVoice = async (e) => {
+    e.preventDefault();
+    if (!cloneFile) {
+      setCloneError("Please choose an audio recording sample (MP3, WAV, M4A, or OGG).");
+      return;
+    }
+    const avatar = avatars.find((a) => a.id === selectedAvatarId) || avatars[0];
+    if (!avatar) return;
+
+    setCloningVoice(true);
+    setCloneError("");
+    setCloneSuccess("");
+
+    try {
+      const name = cloneName.trim() || `${avatar.name}'s Cloned Voice`;
+      const res = await api.cloneVoice(avatar.id, cloneFile, name);
+      setCloneSuccess(`Voice successfully cloned via ElevenLabs! Cloned Voice ID: ${res.voice_id}`);
+      setCloneFile(null);
+      setCloneName("");
+      // Refresh avatars & quota
+      const updatedList = await api.getAvatars();
+      setAvatars(updatedList || []);
+      const sub = await api.getVoiceSubscription();
+      setVoiceSub(sub);
+    } catch (err) {
+      setCloneError(err.message || "Voice cloning failed. Please check audio quality or format.");
+    } finally {
+      setCloningVoice(false);
+    }
+  };
+
+  const handleTestSynthesis = async () => {
+    if (!testText.trim()) return;
+    const avatar = avatars.find((a) => a.id === selectedAvatarId) || avatars[0];
+    if (!avatar) return;
+
+    setTestingAudio(true);
+    try {
+      const blob = await api.getSpeechAudioBlob(avatar.id, testText.trim());
+      const url = URL.createObjectURL(blob);
+      setTestAudioUrl(url);
+      const audio = new Audio(url);
+      await audio.play();
+    } catch (err) {
+      console.error("Test speech synthesis error:", err);
+    } finally {
+      setTestingAudio(false);
+    }
+  };
 
   const handleExport = async (format = "zip") => {
     setExporting(true);
@@ -131,6 +205,7 @@ export default function SettingsPage() {
 
   const tabs = [
     { id: "profile", label: "Profile & Plan", icon: User },
+    { id: "voice", label: "Voice Lab & Cloning", icon: Volume2 },
     { id: "companions", label: "Companions & Consent", icon: Shield },
     { id: "data", label: "Data & Archives", icon: Download },
     { id: "danger", label: "Danger Zone", icon: Trash2 },
@@ -346,6 +421,291 @@ export default function SettingsPage() {
                       <span className="font-semibold" style={{ color: "var(--brand-glow)" }}>
                         Active & Grounded
                       </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: VOICE LAB & CLONING */}
+            {activeTab === "voice" && (
+              <div className="space-y-6">
+                {/* 1. ElevenLabs Subscription & Quota Card */}
+                <div
+                  className="rounded-[24px] p-6 sm:p-8"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-0)",
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--sunglow)" }}>
+                          ElevenLabs Neural Voice Engine
+                        </span>
+                      </div>
+                      <h3
+                        className="text-[20px] font-medium"
+                        style={{ color: "var(--text-0)", fontFamily: "var(--font-display)" }}
+                      >
+                        Voice Lab & Instant Voice Cloning
+                      </h3>
+                      <p className="text-[13px] mt-0.5" style={{ color: "var(--text-1)" }}>
+                        Synthesize companion speech and clone authentic loved ones&apos; voices with emotional fidelity.
+                      </p>
+                    </div>
+
+                    <span
+                      className="px-3 py-1 rounded-full text-[12px] font-bold flex items-center gap-1.5"
+                      style={{
+                        background: "rgba(255, 209, 102, 0.14)",
+                        border: "1px solid rgba(255, 209, 102, 0.4)",
+                        color: "var(--sunglow)",
+                      }}
+                    >
+                      <Sparkles size={13} />
+                      Tier: {voiceSub?.tier ? voiceSub.tier.toUpperCase() : "STARTER"}
+                    </span>
+                  </div>
+
+                  {/* Quota & Limits Bento Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <div className="p-3.5 rounded-xl" style={{ background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--wisteria)" }}>
+                        Character Usage
+                      </span>
+                      <p className="text-[15px] font-bold" style={{ color: "#FAF6FF" }}>
+                        {voiceSub?.character_count ?? 11} / {(voiceSub?.character_limit ?? 40000).toLocaleString()}
+                      </p>
+                      <div className="w-full h-1.5 rounded-full bg-black/40 mt-2 overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.max(2, Math.min(100, ((voiceSub?.character_count ?? 11) / (voiceSub?.character_limit ?? 40000)) * 100))}%`,
+                            background: "linear-gradient(90deg, #BC96E6, #FFD166)",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl" style={{ background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--wisteria)" }}>
+                        Instant Voice Cloning
+                      </span>
+                      <p className="text-[15px] font-bold flex items-center gap-1.5" style={{ color: "#34D399" }}>
+                        <CheckCircle2 size={16} /> Active & Enabled
+                      </p>
+                      <span className="text-[11px]" style={{ color: "var(--text-2)" }}>Up to 10 Custom Clones</span>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl" style={{ background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--wisteria)" }}>
+                        Model Engine
+                      </span>
+                      <p className="text-[14px] font-bold" style={{ color: "var(--sunglow)" }}>
+                        eleven_multilingual_v2
+                      </p>
+                      <span className="text-[11px]" style={{ color: "var(--text-2)" }}>29 Languages + High Emotion</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Instant Voice Cloner Box */}
+                <div
+                  className="rounded-[24px] p-6 sm:p-8"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-0)",
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <h3
+                    className="text-[18px] font-medium mb-1"
+                    style={{ color: "var(--text-0)", fontFamily: "var(--font-display)" }}
+                  >
+                    Clone a Companion&apos;s Voice
+                  </h3>
+                  <p className="text-[13px] mb-5" style={{ color: "var(--text-1)" }}>
+                    Upload an audio recording (voicemail, video audio, or speech sample) of at least 10–30 seconds.
+                  </p>
+
+                  <form onSubmit={handleCloneVoice} className="space-y-4">
+                    {/* Companion Selector */}
+                    <div>
+                      <label className="text-[12px] font-semibold block mb-1.5" style={{ color: "var(--wisteria)" }}>
+                        Target Companion
+                      </label>
+                      <select
+                        value={selectedAvatarId}
+                        onChange={(e) => setSelectedAvatarId(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl text-[13.5px] cursor-pointer"
+                        style={{
+                          background: "var(--surface-1)",
+                          border: "1px solid var(--border-1)",
+                          color: "#FAF6FF",
+                        }}
+                      >
+                        {avatars.map((av) => (
+                          <option key={av.id} value={av.id}>
+                            {av.name} ({av.relationship || "Companion"})
+                            {av.persona_config?.elevenlabs_voice_id ? " — [Cloned Voice Active]" : " — [Preset Voice]"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Custom Voice Name */}
+                    <div>
+                      <label className="text-[12px] font-semibold block mb-1.5" style={{ color: "var(--wisteria)" }}>
+                        Voice Clone Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={cloneName}
+                        onChange={(e) => setCloneName(e.target.value)}
+                        placeholder="e.g., Mom's Voice / Kabir's Authentic Tone"
+                        className="w-full px-4 py-2.5 rounded-xl text-[13.5px]"
+                        style={{
+                          background: "var(--surface-1)",
+                          border: "1px solid var(--border-1)",
+                          color: "#FAF6FF",
+                        }}
+                      />
+                    </div>
+
+                    {/* Audio File Input Dropzone */}
+                    <div>
+                      <label className="text-[12px] font-semibold block mb-1.5" style={{ color: "var(--wisteria)" }}>
+                        Audio Sample (MP3, WAV, M4A, OGG)
+                      </label>
+                      <label
+                        htmlFor="clone-audio-upload"
+                        className="w-full flex flex-col items-center justify-center p-6 rounded-2xl cursor-pointer transition-all border-2 border-dashed"
+                        style={{
+                          borderColor: cloneFile ? "var(--sunglow)" : "rgba(188, 150, 230, 0.35)",
+                          background: cloneFile ? "rgba(255, 209, 102, 0.12)" : "rgba(188, 150, 230, 0.05)",
+                        }}
+                      >
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center mb-2"
+                          style={{
+                            background: "rgba(255, 209, 102, 0.16)",
+                            color: "var(--sunglow)",
+                          }}
+                        >
+                          <Mic size={20} />
+                        </div>
+                        <span className="text-[13.5px] font-semibold mb-0.5" style={{ color: "#FAF6FF" }}>
+                          {cloneFile ? cloneFile.name : "Click to select audio recording"}
+                        </span>
+                        <span className="text-[11.5px]" style={{ color: "var(--text-2)" }}>
+                          Clean audio with minimal background noise yields the best fidelity.
+                        </span>
+                        <input
+                          id="clone-audio-upload"
+                          type="file"
+                          accept="audio/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) setCloneFile(e.target.files[0]);
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    {cloneSuccess && (
+                      <div className="p-3.5 rounded-xl text-[13px] flex items-center gap-2" style={{ background: "rgba(52, 211, 153, 0.15)", border: "1px solid rgba(52, 211, 153, 0.4)", color: "#34D399" }}>
+                        <CheckCircle2 size={16} />
+                        <span>{cloneSuccess}</span>
+                      </div>
+                    )}
+
+                    {cloneError && (
+                      <div className="p-3.5 rounded-xl text-[13px] flex items-center gap-2" style={{ background: "rgba(248, 113, 113, 0.15)", border: "1px solid rgba(248, 113, 113, 0.4)", color: "#F87171" }}>
+                        <AlertTriangle size={16} />
+                        <span>{cloneError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={cloningVoice || !cloneFile}
+                      className="btn btn-primary btn-md flex items-center justify-center gap-2 disabled:opacity-40"
+                    >
+                      {cloningVoice ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Cloning Voice with ElevenLabs...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={16} />
+                          <span>Start Voice Cloning</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* 3. Interactive Speech Synthesis Tester */}
+                <div
+                  className="rounded-[24px] p-6 sm:p-8"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-0)",
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <h3
+                    className="text-[18px] font-medium mb-1"
+                    style={{ color: "var(--text-0)", fontFamily: "var(--font-display)" }}
+                  >
+                    Test Speech Synthesis
+                  </h3>
+                  <p className="text-[13px] mb-4" style={{ color: "var(--text-1)" }}>
+                    Listen to your companion&apos;s active voice in real-time.
+                  </p>
+
+                  <div className="space-y-3">
+                    <textarea
+                      rows={2}
+                      value={testText}
+                      onChange={(e) => setTestText(e.target.value)}
+                      placeholder="Type what your companion should say..."
+                      className="w-full px-4 py-3 rounded-xl text-[13.5px] resize-none"
+                      style={{
+                        background: "var(--surface-1)",
+                        border: "1px solid var(--border-1)",
+                        color: "#FAF6FF",
+                      }}
+                    />
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleTestSynthesis}
+                        disabled={testingAudio || !testText.trim()}
+                        className="btn btn-secondary btn-sm flex items-center gap-2 disabled:opacity-40"
+                      >
+                        {testingAudio ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin text-[#FFD166]" />
+                            <span>Synthesizing Audio via ElevenLabs...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play size={14} className="text-[#FFD166]" />
+                            <span>Synthesize & Play Voice</span>
+                          </>
+                        )}
+                      </button>
+
+                      {testAudioUrl && (
+                        <audio src={testAudioUrl} controls autoPlay className="h-8 max-w-[280px]" />
+                      )}
                     </div>
                   </div>
                 </div>

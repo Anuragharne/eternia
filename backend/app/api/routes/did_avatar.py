@@ -203,20 +203,30 @@ async def get_avatar_photo_url(
 ):
     """Get the public URL of an avatar's uploaded face photo and latest video."""
     db = get_supabase_admin_client()
+    avatar = None
 
-    res = db.table("avatars").select("*").eq("id", avatar_id).execute()
-    if not res.data:
+    if db is not None:
+        try:
+            res = db.table("avatars").select("*").eq("id", avatar_id).execute()
+            if res.data:
+                avatar = res.data[0]
+        except Exception:
+            pass
+
+    if not avatar:
+        from backend.app.api.routes.avatars import LOCAL_AVATARS_STORE
+        avatar = LOCAL_AVATARS_STORE.get(avatar_id)
+
+    if not avatar:
         raise AvatarNotFoundError(avatar_id)
 
-    avatar = res.data[0]
     persona_config = avatar.get("persona_config") or {}
-    photo_url = persona_config.get("did_photo_url")
+    photo_url = persona_config.get("did_photo_url") or avatar.get("photo_s3_key")
 
     if not photo_url:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No photo uploaded for this avatar. Upload one via POST /did-avatar/{id}/upload-photo",
-        )
+        # Default placeholder portrait
+        photo_url = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
+
 
     video_url = persona_config.get("latest_video_url")
     # If the video_url is a temporary D-ID AWS S3 link older than 24h, expire it safely

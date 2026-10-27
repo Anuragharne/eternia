@@ -425,3 +425,5 @@ export function CreateAvatarModal({ onClose, onCreated, onAvatarCreated }) {
     </div>
   );
 }
+
+export default CreateAvatarModal;

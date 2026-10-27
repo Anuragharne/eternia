@@ -22,7 +22,13 @@ class ChatService:
 
     def __init__(self):
         self.db = get_supabase_admin_client()
-        self.redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        if settings.REDIS_URL:
+            try:
+                self.redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            except Exception:
+                self.redis = None
+        else:
+            self.redis = None
 
     def _get_avatar(self, avatar_id: str, user_id: str) -> Dict[str, Any]:
         """Fetch avatar and verify ownership / consent status."""

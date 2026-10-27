@@ -17,23 +17,23 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api"
 
     # Google Gemini AI
-    GEMINI_API_KEY: str
+    GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     EMBEDDING_MODEL: str = "gemini-embedding-2"
 
     # Supabase
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    SUPABASE_SERVICE_ROLE_KEY: str
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_JWT_SECRET: str = ""
 
     # Qdrant Vector DB
-    QDRANT_URL: str
-    QDRANT_API_KEY: str
+    QDRANT_URL: str = ""
+    QDRANT_API_KEY: str = ""
     QDRANT_COLLECTION: str = "memories"
 
     # Redis (Upstash)
-    REDIS_URL: str
+    REDIS_URL: str = ""
 
     # ElevenLabs Voice AI
     ELEVENLABS_API_KEY: str = ""

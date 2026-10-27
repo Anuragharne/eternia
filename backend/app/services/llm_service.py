@@ -27,8 +27,10 @@ class LLMService:
         self.model = settings.GEMINI_MODEL
         if client:
             self.client = client
-        else:
+        elif settings.GEMINI_API_KEY:
             self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        else:
+            self.client = None
 
     def extract_metadata(self, content: str) -> Dict[str, Any]:
         """Extract structured entities, dates, emotion, and tags from memory text."""

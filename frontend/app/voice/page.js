@@ -21,9 +21,12 @@ import {
   AudioWaveform,
   Square,
   RefreshCw,
+  Plus,
+  UserPlus,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
+import CreateAvatarModal from "../../components/chat/CreateAvatarModal";
 
 function VoiceContent() {
   const searchParams = useSearchParams();
@@ -49,6 +52,8 @@ function VoiceContent() {
   const [recentDialogue, setRecentDialogue] = useState([]);
   const [textInput, setTextInput] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
+  const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
 
   // Audio reactivity
   const [audioLevel, setAudioLevel] = useState(0.4);
@@ -147,6 +152,39 @@ function VoiceContent() {
       }
     };
   }, [avatarId]);
+
+  const switchAvatar = async (target) => {
+    if (!target || target.id === activeAvatar?.id) {
+      setShowAvatarDropdown(false);
+      return;
+    }
+    setShowAvatarDropdown(false);
+    setActiveAvatar(target);
+    setPhotoUrl(target.photo_url || target.photo_s3_key || null);
+    setRecentDialogue([]);
+    setCallStatus("connecting");
+    if (companionAudioRef.current) {
+      companionAudioRef.current.pause();
+    }
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    router.replace(`/voice?avatarId=${target.id}`, { scroll: false });
+
+    try {
+      const vInfo = await api.getVoiceInfo(target.id).catch(() => null);
+      setVoiceInfo(vInfo);
+      const pRes = await api.getAvatarPhotoUrl(target.id).catch(() => null);
+      if (pRes?.photo_url) setPhotoUrl(pRes.photo_url);
+
+      const greeting = `Hello! It is so wonderful to hear your voice. What would you like to reflect on together today?`;
+      setSubtitle(greeting);
+      setCallStatus("speaking");
+      playCompanionVoice(greeting, target.id);
+    } catch (e) {
+      setCallStatus("idle");
+    }
+  };
 
   // 3. Speech Recognition (Speech-to-Text)
   const startListening = () => {
@@ -403,35 +441,119 @@ function VoiceContent() {
           </Link>
 
           {activeAvatar && (
-            <div className="flex items-center gap-2.5">
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${
-                  callStatus === "listening"
-                    ? "bg-[#FFD166] shadow-sm shadow-[#FFD166] animate-pulse"
-                    : callStatus === "speaking"
-                    ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse"
-                    : "bg-[#BC96E6]"
-                }`}
-              />
-              <div>
-                <h1 className="text-[14px] font-semibold tracking-wide leading-tight flex items-center gap-1.5" style={{ color: "#FAF6FF" }}>
-                  {activeAvatar.name}
-                  <span
-                    className="text-[10px] px-2.5 py-0.5 rounded-full font-bold"
-                    style={{
-                      background: "rgba(255, 209, 102, 0.15)",
-                      color: "var(--sunglow)",
-                      border: "1px solid rgba(255, 209, 102, 0.4)",
-                    }}
-                  >
-                    {activeAvatar.relationship || "Companion"}
-                  </span>
-                </h1>
-                <p className="text-[10.5px] flex items-center gap-1" style={{ color: "var(--text-2)" }}>
-                  <Volume2 size={10} style={{ color: "var(--sunglow)" }} />
-                  <span>{voiceInfo ? `${voiceInfo.voice_name} Voice` : "Neural Voice"}</span>
-                </p>
-              </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowAvatarDropdown(!showAvatarDropdown)}
+                className="flex items-center gap-2.5 p-1.5 px-3 rounded-2xl hover:bg-[#3B184C]/50 transition-all cursor-pointer border border-transparent hover:border-[#BC96E6]/30 text-left"
+                title="Switch Companion"
+              >
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    callStatus === "listening"
+                      ? "bg-[#FFD166] shadow-sm shadow-[#FFD166] animate-pulse"
+                      : callStatus === "speaking"
+                      ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse"
+                      : "bg-[#BC96E6]"
+                  }`}
+                />
+                <div>
+                  <h1 className="text-[14px] font-semibold tracking-wide leading-tight flex items-center gap-1.5" style={{ color: "#FAF6FF" }}>
+                    <span>{activeAvatar.name}</span>
+                    <ChevronDown size={14} className="text-[#FFD166] transition-transform" />
+                    <span
+                      className="text-[10px] px-2.5 py-0.5 rounded-full font-bold"
+                      style={{
+                        background: "rgba(255, 209, 102, 0.15)",
+                        color: "var(--sunglow)",
+                        border: "1px solid rgba(255, 209, 102, 0.4)",
+                      }}
+                    >
+                      {activeAvatar.relationship || "Companion"}
+                    </span>
+                  </h1>
+                  <p className="text-[10.5px] flex items-center gap-1" style={{ color: "var(--text-2)" }}>
+                    <Volume2 size={10} style={{ color: "var(--sunglow)" }} />
+                    <span>
+                      {voiceInfo?.is_cloned || activeAvatar.voice_status === "cloned" || activeAvatar.persona_config?.elevenlabs_voice_id
+                        ? "🎙️ ElevenLabs Cloned Voice"
+                        : voiceInfo
+                        ? `${voiceInfo.voice_name} Voice`
+                        : "Neural Voice"}
+                    </span>
+                  </p>
+                </div>
+              </button>
+
+              {/* Companion Switcher Dropdown */}
+              {showAvatarDropdown && (
+                <div
+                  className="absolute top-full left-0 mt-2 w-72 rounded-2xl p-2 z-50 shadow-2xl"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-1)",
+                    boxShadow: "0 20px 60px rgba(18, 5, 24, 0.8)",
+                  }}
+                >
+                  <div className="text-[10px] uppercase tracking-wider px-3 py-1 font-bold" style={{ color: "var(--sunglow)" }}>
+                    Choose Companion
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-1 my-1 pr-1">
+                    {avatars.map((av) => (
+                      <button
+                        key={av.id}
+                        type="button"
+                        onClick={() => switchAvatar(av)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[12px] transition-all cursor-pointer"
+                        style={{
+                          background: av.id === activeAvatar.id ? "rgba(255, 209, 102, 0.15)" : "transparent",
+                          border: av.id === activeAvatar.id ? "1px solid var(--border-sunglow)" : "1px solid transparent",
+                          color: av.id === activeAvatar.id ? "#FAF6FF" : "var(--text-1)",
+                        }}
+                      >
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden"
+                          style={{
+                            background: "linear-gradient(135deg, #210B2C, #3B184C)",
+                            border: "1px solid rgba(255, 209, 102, 0.4)",
+                            color: "var(--sunglow)",
+                          }}
+                        >
+                          {av.photo_url ? (
+                            <img src={av.photo_url} alt={av.name} className="w-full h-full object-cover" />
+                          ) : (
+                            av.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold truncate text-[12.5px] text-[#FAF6FF]">{av.name}</div>
+                          <div className="text-[10px] text-[var(--text-2)] truncate">
+                            {av.relationship || "Companion"}
+                            {av.voice_status === "cloned" || av.persona_config?.elevenlabs_voice_id ? " · 🎙️ Cloned" : ""}
+                          </div>
+                        </div>
+                        {av.id === activeAvatar.id && (
+                          <div className="w-2 h-2 rounded-full bg-[#FFD166] shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="pt-2 mt-1" style={{ borderTop: "1px solid var(--border-0)" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAvatarDropdown(false);
+                        setShowCreateAvatarModal(true);
+                      }}
+                      className="w-full btn btn-primary btn-sm flex items-center justify-center gap-1.5 py-1.5"
+                    >
+                      <Plus size={13} />
+                      <span>+ Create New Companion</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -465,6 +587,18 @@ function VoiceContent() {
           >
             <Sparkles size={11} style={{ color: isHandsFree ? "var(--brand-glow)" : "var(--text-2)" }} />
             <span>Hands-free: {isHandsFree ? "ON" : "OFF"}</span>
+          </button>
+
+          {/* Create New Companion button */}
+          <button
+            type="button"
+            onClick={() => setShowCreateAvatarModal(true)}
+            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+            style={{ fontSize: 11, padding: "5px 10px" }}
+            title="Create New Companion"
+          >
+            <UserPlus size={12} style={{ color: "var(--sunglow)" }} />
+            <span className="hidden md:inline">New Companion</span>
           </button>
 
           {/* Link to Video Call */}
@@ -728,6 +862,19 @@ function VoiceContent() {
           </button>
         </div>
       </footer>
+
+      {/* In-Call Create Companion Modal */}
+      {showCreateAvatarModal && (
+        <CreateAvatarModal
+          onClose={() => setShowCreateAvatarModal(false)}
+          onAvatarCreated={async (newAvatar) => {
+            setShowCreateAvatarModal(false);
+            const list = await api.getAvatars().catch(() => []);
+            setAvatars(list || []);
+            switchAvatar(newAvatar);
+          }}
+        />
+      )}
     </div>
   );
 }

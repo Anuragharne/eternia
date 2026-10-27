@@ -255,7 +255,7 @@ class VoiceService:
             content_type = "audio/ogg"
         elif lower_fn.endswith(".webm"):
             content_type = "audio/webm"
-        elif lower_fn.endswith(".m4a"):
+        elif lower_fn.endswith(".m4a") or lower_fn.endswith(".mp4"):
             content_type = "audio/mp4"
 
         files = [
@@ -277,6 +277,21 @@ class VoiceService:
             logger.info("Successfully created ElevenLabs voice clone: %s for %s", voice_id, name)
             return voice_id
 
+    async def clone_voice(
+        self,
+        name: str,
+        audio_bytes: bytes,
+        filename: str = "sample.wav",
+        description: Optional[str] = None,
+    ) -> Dict[str, str]:
+        """Clone a voice using ElevenLabs Instant Voice Cloning (IVC) API.
+
+        Uploads audio recording samples and registers a cloned voice profile.
+        Returns: dict with 'voice_id' and 'name'.
+        """
+        voice_id = await self.create_instant_voice_clone(name=name, audio_bytes=audio_bytes, filename=filename)
+        return {"voice_id": voice_id, "name": name}
+
     async def delete_voice(self, voice_id: str) -> bool:
         """Delete a custom cloned voice from ElevenLabs to free up voice slots."""
         url = f"https://api.elevenlabs.io/v1/voices/{voice_id}"
@@ -285,5 +300,40 @@ class VoiceService:
             resp = await client.delete(url, headers=headers)
             return resp.status_code in (200, 204)
 
+    async def get_subscription_info(self) -> Dict:
+        """Fetch ElevenLabs account subscription tier and quota usage."""
+        key = settings.ELEVENLABS_API_KEY
+        if not key:
+            return {"configured": False, "tier": "none"}
+        url = "https://api.elevenlabs.io/v1/user/subscription"
+        headers = {"xi-api-key": key}
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "configured": True,
+                    "tier": data.get("tier"),
+                    "character_count": data.get("character_count", 0),
+                    "character_limit": data.get("character_limit", 0),
+                    "can_use_instant_voice_cloning": data.get("can_use_instant_voice_cloning", False),
+                }
+            return {"configured": True, "error": resp.text}
+
+    async def get_cloned_voices(self) -> list:
+        """Fetch all cloned voices in the ElevenLabs account."""
+        key = settings.ELEVENLABS_API_KEY
+        if not key:
+            return []
+        url = "https://api.elevenlabs.io/v1/voices"
+        headers = {"xi-api-key": key}
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                return [v for v in data.get("voices", []) if v.get("category") == "cloned"]
+            return []
+
 
 voice_service = VoiceService()
+
