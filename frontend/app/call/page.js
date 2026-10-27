@@ -19,51 +19,11 @@ import {
   Clock,
   Heart,
   Smile,
-  ChevronDown,
   User,
-  Check,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
 import { AvatarPhotoUpload } from "../../components/chat/AvatarPhotoUpload";
-
-// High quality Simli default faces
-const DEFAULT_SIMLI_FACES = [
-  { id: "03ce3ee8-db97-4150-a333-8f643d48fee9", name: "Daniel (Male)", gender: "male" },
-  { id: "3bad681f-1b4a-4507-bc54-fbc675c191b7", name: "Victor (Male)", gender: "male" },
-  { id: "66d1f5af-9b9b-49e2-a97f-6f5f3d59a2d5", name: "Tina (Female)", gender: "female" },
-  { id: "8ef039c1-06d7-4ea7-b01c-6b620c755a92", name: "Ruby (Female)", gender: "female" },
-  { id: "148efaa3-0224-490d-ab77-2a026f4e6738", name: "Alex (Neutral)", gender: "all" },
-];
-
-// Cleanly disconnect Web Audio nodes before stopping Simli transport
-// Prevents "Invalid State, WS Connection" and LiveKit disconnect crashes
-const stopSimliClient = async (client) => {
-  if (!client) return;
-  try {
-    if (client.audioWorklet) {
-      try {
-        if (client.audioWorklet.port) {
-          client.audioWorklet.port.onmessage = null;
-        }
-        client.audioWorklet.disconnect();
-      } catch {}
-    }
-    if (client.sourceNode) {
-      try {
-        client.sourceNode.disconnect();
-      } catch {}
-    }
-    if (client.audioContext && client.audioContext.state !== "closed") {
-      try {
-        await client.audioContext.close();
-      } catch {}
-    }
-    await client.stop();
-  } catch (err) {
-    // Teardown disconnects are expected
-  }
-};
 
 function CallContent() {
   const searchParams = useSearchParams();
@@ -76,11 +36,9 @@ function CallContent() {
   const [activeAvatar, setActiveAvatar] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
 
-  // Simli Live Avatar State
-  const [isSimliConnected, setIsSimliConnected] = useState(false);
-  const [isSimliConnecting, setIsSimliConnecting] = useState(false);
-  const [selectedFaceId, setSelectedFaceId] = useState("custom");
-  const [showFaceMenu, setShowFaceMenu] = useState(false);
+  // Anam.ai Live Interactive Avatar State
+  const [isAnamConnected, setIsAnamConnected] = useState(false);
+  const [isAnamConnecting, setIsAnamConnecting] = useState(false);
 
   // Audio & Speech
   const [isMuted, setIsMuted] = useState(false);
@@ -97,11 +55,8 @@ function CallContent() {
   const [callStatus, setCallStatus] = useState("Connecting to companion...");
 
   // Refs
-  const simliVideoRef = useRef(null);
-  const simliAudioRef = useRef(null);
   const companionAudioRef = useRef(null);
-  const simliClientRef = useRef(null);
-  const activeSessionKeyRef = useRef("");
+  const anamClientRef = useRef(null);
   const isConnectingRef = useRef(false);
   const recognitionRef = useRef(null);
   const lastTranscriptRef = useRef("");
@@ -180,14 +135,11 @@ function CallContent() {
     };
   }, [avatarId]);
 
-  // 3. Initialize Simli WebRTC Live Stream
-  const initSimliSession = async (faceId = selectedFaceId) => {
+  // 3. Initialize Anam.ai 25fps Real-Time WebRTC Live Avatar
+  const initAnamSession = async () => {
     if (typeof window === "undefined" || !activeAvatar) return;
 
-    const targetFaceParam = faceId === "custom" ? null : faceId;
-    const sessionKey = `${activeAvatar.id}_${faceId}`;
-
-    if (isSimliConnected && activeSessionKeyRef.current === sessionKey && simliClientRef.current) {
+    if (isAnamConnected && anamClientRef.current) {
       return;
     }
 
@@ -196,112 +148,72 @@ function CallContent() {
     }
 
     isConnectingRef.current = true;
-    setIsSimliConnecting(true);
-    setCallStatus("Connecting to Simli 16:9 Stream...");
+    setIsAnamConnecting(true);
+    setCallStatus("Connecting to Anam 16:9 Live Avatar...");
 
     // Stop previous client cleanly if one was active
-    if (simliClientRef.current) {
-      const prevClient = simliClientRef.current;
-      simliClientRef.current = null;
-      activeSessionKeyRef.current = "";
-      audioContextSourceAttached.current = false;
-      await stopSimliClient(prevClient);
+    if (anamClientRef.current) {
+      const prevClient = anamClientRef.current;
+      anamClientRef.current = null;
+      try {
+        await prevClient.stopStreaming();
+      } catch {}
     }
 
     try {
-      const { SimliClient, LogLevel } = await import("simli-client");
-      const tokenRes = await api.getSimliToken(activeAvatar.id, targetFaceParam);
+      const { createClient, AnamEvent } = await import("@anam-ai/js-sdk");
+      const tokenRes = await api.getAnamSessionToken(activeAvatar.id);
 
-      if (!tokenRes?.session_token) {
-        throw new Error("No session token received from Simli");
+      if (!tokenRes?.sessionToken) {
+        throw new Error("No session token received from Anam.ai");
       }
 
-      if (simliVideoRef.current && simliAudioRef.current) {
-        const client = new SimliClient(
-          tokenRes.session_token,
-          simliVideoRef.current,
-          simliAudioRef.current,
-          null,
-          LogLevel.INFO
-        );
+      const client = createClient(tokenRes.sessionToken);
+      anamClientRef.current = client;
 
-        simliClientRef.current = client;
-        activeSessionKeyRef.current = sessionKey;
+      client.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => {
+        console.log("[Anam] WebRTC connection established!");
+        setIsAnamConnected(true);
+        setIsAnamConnecting(false);
+        isConnectingRef.current = false;
+        setCallStatus("Live 16:9 Digital Human Active");
+      });
 
-        client.on("start", () => {
-          console.log("[Simli] WebRTC 16:9 Stream Started!");
-          setIsSimliConnected(true);
-          setIsSimliConnecting(false);
-          isConnectingRef.current = false;
-          setCallStatus("Live 16:9 Stream Active");
-        });
+      client.addListener(AnamEvent.VIDEO_PLAY_STARTED, () => {
+        console.log("[Anam] 25fps digital human video playing!");
+        setIsAnamConnected(true);
+        setIsAnamConnecting(false);
+        isConnectingRef.current = false;
+        setCallStatus("Live 16:9 Digital Human Active");
+      });
 
-        client.on("stop", () => {
-          console.log("[Simli] WebRTC Stream stopped");
-          setIsSimliConnected(false);
-          setIsSimliConnecting(false);
-          isConnectingRef.current = false;
-          setCallStatus("Stream Paused");
-        });
+      client.addListener(AnamEvent.CONNECTION_CLOSED, (code, details) => {
+        console.log("[Anam] Connection closed:", code, details);
+        setIsAnamConnected(false);
+        setIsAnamConnecting(false);
+        isConnectingRef.current = false;
+        setCallStatus("Interactive Mode");
+      });
 
-        client.on("speaking", () => {
-          setIsSpeaking(true);
-        });
+      // Stream directly to the 16:9 widescreen video element
+      await client.streamToVideoElement("anam-persona-video");
 
-        client.on("silent", () => {
-          setIsSpeaking(false);
-        });
-
-        client.on("error", (err) => {
-          const errMsg = typeof err === "string" ? err : err?.message || "";
-          if (errMsg.includes("Client initiated disconnect") || errMsg.includes("disconnect")) {
-            return;
-          }
-          console.warn("[Simli] WebRTC notice:", errMsg);
-          setIsSimliConnected(false);
-          setIsSimliConnecting(false);
-          isConnectingRef.current = false;
-          setCallStatus("Stream Offline (Photo Mode)");
-        });
-
-        client.on("startup_error", (err) => {
-          const errMsg = typeof err === "string" ? err : err?.message || "";
-          if (errMsg.includes("Client initiated disconnect") || errMsg.includes("disconnect")) {
-            return;
-          }
-          console.warn("[Simli] Startup notice:", errMsg);
-          setIsSimliConnected(false);
-          setIsSimliConnecting(false);
-          isConnectingRef.current = false;
-          setCallStatus("Interactive Mode");
-        });
-
-        await client.start();
-
-        if (simliAudioRef.current) {
-          simliAudioRef.current.muted = isMuted;
-          simliAudioRef.current.play().catch(() => {});
-        }
-      }
     } catch (err) {
-      const errMsg = err?.message || String(err);
-      if (!errMsg.includes("Client initiated disconnect") && !errMsg.includes("disconnect")) {
-        console.warn("Simli WebRTC initialization notice:", err);
-      }
-      setIsSimliConnected(false);
+      console.warn("Anam.ai WebRTC initialization notice:", err);
+      setIsAnamConnected(false);
       setCallStatus("Interactive Mode");
     } finally {
-      setIsSimliConnecting(false);
+      setIsAnamConnecting(false);
       isConnectingRef.current = false;
     }
   };
 
-  // Start Simli when avatar is loaded (debounced to avoid React StrictMode duplicate start)
+  // Start Anam when avatar is loaded (debounced to avoid React StrictMode duplicate start)
   useEffect(() => {
     let isCancelled = false;
     const timer = setTimeout(() => {
       if (!isCancelled && activeAvatar?.id) {
-        initSimliSession(selectedFaceId);
+        initAnamSession();
       }
     }, 250);
 
@@ -309,79 +221,37 @@ function CallContent() {
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [activeAvatar?.id, selectedFaceId]);
+  }, [activeAvatar?.id]);
 
   // Teardown when component completely unmounts or before page refresh/leave
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (simliClientRef.current) {
-        stopSimliClient(simliClientRef.current);
+      if (anamClientRef.current) {
+        anamClientRef.current.stopStreaming().catch(() => {});
       }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      if (simliClientRef.current) {
-        const client = simliClientRef.current;
-        simliClientRef.current = null;
-        activeSessionKeyRef.current = "";
-        stopSimliClient(client);
+      if (anamClientRef.current) {
+        const client = anamClientRef.current;
+        anamClientRef.current = null;
+        client.stopStreaming().catch(() => {});
       }
     };
   }, []);
 
-  // 4. Stream speech audio chunks into Simli client for real-time lip-sync and audio playback
-  const streamAudioToSimli = async (pcmBytes) => {
-    if (!simliClientRef.current || !pcmBytes || pcmBytes.length === 0) return;
-
-    const client = simliClientRef.current;
-    if (client.audioContext && client.audioContext.state === "suspended") {
-      try {
-        await client.audioContext.resume();
-      } catch {}
-    }
-
-    // Ensure WebRTC audio output element is active and unmuted
-    if (simliAudioRef.current) {
-      simliAudioRef.current.muted = isMuted;
-      try {
-        await simliAudioRef.current.play();
-      } catch {}
-    }
-
-    // Chunk size: 6000 bytes = 3000 16-bit samples = 187.5ms of 16kHz audio
-    const chunkSize = 6000;
-    const totalChunks = Math.ceil(pcmBytes.length / chunkSize);
-
-    for (let i = 0; i < totalChunks; i++) {
-      if (!simliClientRef.current) break; // If call ended during playback
-      const start = i * chunkSize;
-      const end = Math.min(start + chunkSize, pcmBytes.length);
-      const chunk = pcmBytes.slice(start, end);
-      try {
-        client.sendAudioData(chunk);
-      } catch (err) {
-        console.warn("[Simli] Audio chunk send notice:", err);
-      }
-      // Paced stream matching speech duration to prevent jitter
-      await new Promise((r) => setTimeout(r, 180));
-    }
-  };
-
-  // 5. Play companion speech audio (Pipes directly to Simli WebRTC or falls back to HTML5 audio)
+  // 4. Play companion speech audio (Pipes directly to Anam.ai WebRTC for 25fps lip-sync)
   const playCompanionSpeech = async (replyText) => {
     if (!replyText || !activeAvatar) return;
     setIsSpeaking(true);
     setSubtitle(replyText);
 
     try {
-      // 1. Fetch raw 16kHz PCM audio from ElevenLabs for Simli lip-sync
-      const pcmBytes = await api.getSpeechAudioPCM(activeAvatar.id, replyText);
-
-      if (simliClientRef.current && isSimliConnected) {
-        // Stream directly into Simli's WebRTC channel for animated lip movements + audio
-        await streamAudioToSimli(pcmBytes);
+      if (anamClientRef.current && isAnamConnected) {
+        // Anam.ai renders photorealistic 25fps facial animation & lip-sync over WebRTC
+        await anamClientRef.current.talk(replyText);
       } else {
         // Fallback: If WebRTC stream is offline/connecting, play MP3 via HTML5 audio
         const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, replyText);
@@ -403,9 +273,8 @@ function CallContent() {
         }
       }
     } catch (voiceErr) {
-      console.warn("[Call] Voice synthesis fallback:", voiceErr);
+      console.warn("[Call] Speech playback notice:", voiceErr);
       try {
-        // Secondary fallback: standard MP3 speech
         const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, replyText);
         const audioUrl = URL.createObjectURL(audioBlob);
         if (companionAudioRef.current) {
@@ -424,7 +293,6 @@ function CallContent() {
           });
         }
       } catch (mp3Err) {
-        // Tertiary fallback: Browser SpeechSynthesis
         if ("speechSynthesis" in window) {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(replyText);
@@ -440,7 +308,7 @@ function CallContent() {
     }
   };
 
-  // 6. Speech Recognition Setup (Web Speech API) - Fixed stale closure
+  // 5. Speech Recognition Setup (Web Speech API) - Fixed stale closure
   const startListening = () => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -511,7 +379,7 @@ function CallContent() {
     }
   };
 
-  // 7. Send message and handle companion response with Simli audio pipe
+  // 6. Send message and handle companion response with Anam live avatar
   const handleSendMessage = async (userMessage) => {
     if (!userMessage || !activeAvatar) return;
     setTranscript("");
@@ -520,7 +388,7 @@ function CallContent() {
     setIsSpeaking(true);
 
     try {
-      // Send chat message to backend
+      // Send chat message to backend (Gemini/LLM companion reply)
       const res = await api.sendMessage(activeAvatar.id, userMessage);
       const reply = res?.companion_reply || res?.message || "";
       if (!reply) throw new Error("No response from companion");
@@ -533,57 +401,39 @@ function CallContent() {
     }
   };
 
-  // 8. Automatic Interactive Greeting when Call Connects
+  // 7. Automatic Interactive Greeting when Call Connects
   useEffect(() => {
     if (activeAvatar && !hasGreetedRef.current && !isLoading) {
       hasGreetedRef.current = true;
       const greetingTimer = setTimeout(() => {
         const greeting = `Hey! It's so good to see you. How are you doing today?`;
         playCompanionSpeech(greeting);
-      }, 1000);
+      }, 1200);
       return () => clearTimeout(greetingTimer);
     }
   }, [activeAvatar?.id, isLoading]);
 
-  // 9. Unlock Web Audio Context on first user click/touch
-  useEffect(() => {
-    const unlockAudio = () => {
-      if (simliClientRef.current?.audioContext?.state === "suspended") {
-        simliClientRef.current.audioContext.resume().catch(() => {});
-      }
-      if (simliAudioRef.current) {
-        simliAudioRef.current.play().catch(() => {});
-      }
-    };
-    window.addEventListener("click", unlockAudio, { once: true });
-    window.addEventListener("touchstart", unlockAudio, { once: true });
-    return () => {
-      window.removeEventListener("click", unlockAudio);
-      window.removeEventListener("touchstart", unlockAudio);
-    };
-  }, []);
-
-  // 6. Toggle Mute
+  // 8. Toggle Mute
   const toggleMute = () => {
     setIsMuted(!isMuted);
+    const videoEl = document.getElementById("anam-persona-video");
+    if (videoEl) {
+      videoEl.muted = !isMuted;
+    }
     if (companionAudioRef.current) {
       companionAudioRef.current.muted = !isMuted;
     }
-    if (simliAudioRef.current) {
-      simliAudioRef.current.muted = !isMuted;
-    }
   };
 
-  // 7. End Call
+  // 9. End Call
   const handleEndCall = async () => {
     if (companionAudioRef.current) {
       companionAudioRef.current.pause();
     }
-    if (simliClientRef.current) {
-      const client = simliClientRef.current;
-      simliClientRef.current = null;
-      activeSessionKeyRef.current = "";
-      await stopSimliClient(client);
+    if (anamClientRef.current) {
+      const client = anamClientRef.current;
+      anamClientRef.current = null;
+      await client.stopStreaming().catch(() => {});
     }
     if (recognitionRef.current) {
       try {
@@ -593,19 +443,12 @@ function CallContent() {
     router.push(activeAvatar ? `/chat?avatarId=${activeAvatar.id}` : "/chat");
   };
 
-  // Available faces to display
-  const facesList = [
-    { id: "custom", name: `${activeAvatar?.name || "Companion"} (Your Avatar)` },
-    ...DEFAULT_SIMLI_FACES,
-  ];
-
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-[#0D0D0D] text-[#FAFAFA] flex flex-col relative select-none">
       {/* Background Ambient Violet Backlight Glow */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full bg-gradient-to-tr from-[#433075]/30 via-[#A58CF4]/15 to-transparent blur-3xl pointer-events-none -z-10" />
 
-      {/* Hidden Audio Elements for WebRTC and TTS */}
-      <audio ref={simliAudioRef} autoPlay playsInline />
+      {/* Hidden Fallback Audio Element */}
       <audio ref={companionAudioRef} crossOrigin="anonymous" />
 
       {/* 1. Top Header Bar (56px) */}
@@ -623,7 +466,7 @@ function CallContent() {
             <div className="flex items-center gap-2.5">
               <span
                 className={`w-2.5 h-2.5 rounded-full ${
-                  isSimliConnected ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" : "bg-amber-400"
+                  isAnamConnected ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" : "bg-amber-400"
                 }`}
               />
               <div>
@@ -647,47 +490,11 @@ function CallContent() {
           <span className="font-mono tracking-wider">{formatDuration(callDuration)}</span>
         </div>
 
-        {/* Right: Actions (Face Preset Selector & Photo Upload) */}
+        {/* Right: Actions */}
         <div className="flex items-center gap-2 relative">
-          {/* Face Preset Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowFaceMenu(!showFaceMenu)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#A58CF4] hover:text-[#FAFAFA] text-[11px] font-medium transition-all cursor-pointer"
-              title="Select Avatar Persona Face"
-            >
-              <Smile size={12} />
-              <span className="hidden md:inline">Avatar Face</span>
-              <ChevronDown size={11} />
-            </button>
-
-            {showFaceMenu && (
-              <div className="absolute right-0 mt-2 w-52 rounded-2xl bg-[#0D0D0D]/95 border border-[#A58CF4]/30 shadow-2xl p-1.5 z-50 backdrop-blur-2xl">
-                <div className="text-[10px] text-[#A58CF4] font-semibold px-2 py-1 uppercase tracking-wider">
-                  Select Avatar Face
-                </div>
-                {facesList.map((face) => (
-                  <button
-                    key={face.id}
-                    onClick={() => {
-                      setSelectedFaceId(face.id);
-                      setShowFaceMenu(false);
-                    }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[11px] flex items-center justify-between transition-all ${
-                      selectedFaceId === face.id
-                        ? "bg-[#433075] text-[#FAFAFA] font-medium"
-                        : "text-[rgba(250,250,250,0.7)] hover:bg-[#433075]/40 hover:text-[#FAFAFA]"
-                    }`}
-                  >
-                    <span className="truncate">{face.name}</span>
-                    {selectedFaceId === face.id && (
-                      <Check size={12} className="text-emerald-400 shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#433075]/20 border border-[#A58CF4]/20 text-[11px] text-[#A58CF4]">
+            <Sparkles size={11} className="text-[#A58CF4]" />
+            <span>Anam Cara-4 25fps</span>
           </div>
 
           {/* Photo Upload Modal Trigger */}
@@ -716,20 +523,20 @@ function CallContent() {
           <>
             {/* 16:9 Cinematic Widescreen Avatar Frame */}
             <div className="w-full max-w-[calc((100vh-215px)*16/9)] aspect-[16/9] max-h-[calc(100vh-215px)] min-h-[240px] relative rounded-2xl sm:rounded-3xl overflow-hidden bg-black border border-[#A58CF4]/30 shadow-[0_16px_70px_rgba(67,48,117,0.35)] flex items-center justify-center shrink mx-auto">
-              {/* WebRTC Video Element (Always mounted for stream binding, fills 16:9 frame) */}
+              {/* Anam.ai Real-Time 25fps Live WebRTC Video Element */}
               <video
-                ref={simliVideoRef}
+                id="anam-persona-video"
                 autoPlay
                 playsInline
                 className={`w-full h-full object-cover transition-opacity duration-700 ${
-                  isSimliConnected ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+                  isAnamConnected ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
                 }`}
               />
 
-              {/* Seamless Companion Photo Display: Fills 16:9 Frame Completely */}
+              {/* Seamless Companion Photo Display (During Initial Connect) */}
               <div
                 className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${
-                  isSimliConnected ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
+                  isAnamConnected ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
                 }`}
               >
                 {photoUrl ? (
@@ -745,7 +552,7 @@ function CallContent() {
                       src={photoUrl}
                       alt={activeAvatar?.name || "Companion"}
                       className={`relative w-full h-full object-cover object-[center_65%] transition-transform duration-1000 ${
-                        isSpeaking ? "scale-[1.03]" : "scale-100 animate-pulse"
+                        isSpeaking ? "scale-[1.03]" : "scale-100"
                       }`}
                     />
                     {/* Subtle cinematic gradient vignette */}
@@ -760,7 +567,7 @@ function CallContent() {
                       {activeAvatar?.name || "Companion"}
                     </p>
                     <p className="text-[11px] text-[rgba(250,250,250,0.5)]">
-                      Connecting live interactive avatar stream...
+                      Connecting live interactive digital human...
                     </p>
                   </div>
                 )}
@@ -770,12 +577,12 @@ function CallContent() {
               <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-[#A58CF4]/25 text-[10.5px] text-[#FAFAFA]">
                 <Radio
                   size={10}
-                  className={isSimliConnected ? "text-emerald-400 animate-pulse" : "text-amber-400"}
+                  className={isAnamConnected ? "text-emerald-400 animate-pulse" : "text-amber-400"}
                 />
                 <span>
-                  {isSimliConnected
-                    ? "16:9 Live Stream Active"
-                    : isSimliConnecting
+                  {isAnamConnected
+                    ? "25fps Live Digital Human"
+                    : isAnamConnecting
                     ? "Connecting Live Avatar..."
                     : "Interactive 16:9 Ready"}
                 </span>
@@ -873,26 +680,22 @@ function CallContent() {
                   )}
                 </button>
 
-                {/* Refresh / Reconnect WebRTC Stream */}
+                {/* Refresh Stream Button */}
                 <button
                   type="button"
-                  onClick={() => initSimliSession(selectedFaceId)}
-                  disabled={isSimliConnecting}
-                  className="p-3 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#FAFAFA] transition-all cursor-pointer disabled:opacity-50"
-                  title="Reconnect Simli Live Stream"
+                  onClick={() => initAnamSession()}
+                  className="p-3 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#FAFAFA] transition-all cursor-pointer"
+                  title="Reconnect Live Avatar Stream"
                 >
-                  <RotateCcw
-                    size={17}
-                    className={`text-[#A58CF4] ${isSimliConnecting ? "animate-spin" : ""}`}
-                  />
+                  <RotateCcw size={17} />
                 </button>
 
-                {/* Hang Up / Exit Call */}
+                {/* Hang Up Button */}
                 <button
                   type="button"
                   onClick={handleEndCall}
-                  className="p-3 rounded-full bg-rose-600/90 hover:bg-rose-600 border border-rose-400 text-white transition-all cursor-pointer shadow-lg hover:scale-105"
-                  title="End Call and Return to Chat"
+                  className="p-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/40 transition-all cursor-pointer hover:scale-105"
+                  title="End Video Call"
                 >
                   <PhoneOff size={17} />
                 </button>
@@ -903,35 +706,16 @@ function CallContent() {
       </main>
 
       {/* Portrait Photo Upload Modal */}
-      {showPhotoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#0D0D0D] border border-[#A58CF4]/30 p-6 shadow-2xl">
-            <h3 className="text-[16px] font-bold text-[#FAFAFA] mb-1">
-              Update Companion Photo
-            </h3>
-            <p className="text-[12px] text-[rgba(250,250,250,0.6)] mb-4">
-              Upload a clear front-facing portrait to customize your companion&apos;s appearance.
-            </p>
-            <AvatarPhotoUpload
-              avatarId={activeAvatar?.id}
-              avatarName={activeAvatar?.name}
-              currentPhotoUrl={photoUrl}
-              onUploadComplete={(newUrl) => {
-                setPhotoUrl(newUrl);
-                setShowPhotoModal(false);
-              }}
-            />
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowPhotoModal(false)}
-                className="px-4 py-1.5 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 text-[12px] text-[#FAFAFA] border border-[#A58CF4]/25 transition-all cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+      {showPhotoModal && activeAvatar && (
+        <AvatarPhotoUpload
+          avatar={activeAvatar}
+          currentPhotoUrl={photoUrl}
+          onClose={() => setShowPhotoModal(false)}
+          onPhotoUpdated={(newUrl) => {
+            setPhotoUrl(newUrl);
+            setShowPhotoModal(false);
+          }}
+        />
       )}
     </div>
   );
@@ -941,8 +725,8 @@ export default function CallPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen bg-[#0D0D0D] flex items-center justify-center text-[#FAFAFA]">
-          <Loader2 size={32} className="animate-spin text-[#A58CF4]" />
+        <div className="h-screen flex items-center justify-center bg-[#0D0D0D] text-[#FAFAFA]">
+          <Loader2 size={36} className="text-[#A58CF4] animate-spin" />
         </div>
       }
     >

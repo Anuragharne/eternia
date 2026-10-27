@@ -229,6 +229,13 @@ export const api = {
     }),
 
   getSimliFaces: () => apiCall("/simli/faces"),
+
+  // Anam.ai Live Interactive Avatar WebRTC Session
+  getAnamSessionToken: (avatarId) =>
+    apiCall("/anam/session-token", {
+      method: "POST",
+      body: JSON.stringify({ avatar_id: avatarId }),
+    }),
 };
 
 
