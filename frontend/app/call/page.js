@@ -35,6 +35,35 @@ const DEFAULT_SIMLI_FACES = [
   { id: "148efaa3-0224-490d-ab77-2a026f4e6738", name: "Alex (Neutral)", gender: "all" },
 ];
 
+// Cleanly disconnect Web Audio nodes before stopping Simli transport
+// Prevents "Invalid State, WS Connection" and LiveKit disconnect crashes
+const stopSimliClient = async (client) => {
+  if (!client) return;
+  try {
+    if (client.audioWorklet) {
+      try {
+        if (client.audioWorklet.port) {
+          client.audioWorklet.port.onmessage = null;
+        }
+        client.audioWorklet.disconnect();
+      } catch {}
+    }
+    if (client.sourceNode) {
+      try {
+        client.sourceNode.disconnect();
+      } catch {}
+    }
+    if (client.audioContext && client.audioContext.state !== "closed") {
+      try {
+        await client.audioContext.close();
+      } catch {}
+    }
+    await client.stop();
+  } catch (err) {
+    // Teardown disconnects are expected
+  }
+};
+
 function CallContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -71,6 +100,9 @@ function CallContent() {
   const simliAudioRef = useRef(null);
   const companionAudioRef = useRef(null);
   const simliClientRef = useRef(null);
+  const connectionSeqRef = useRef(0);
+  const isConnectingRef = useRef(false);
+  const currentConnectedKeyRef = useRef("");
   const audioContextSourceAttached = useRef(false);
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
@@ -150,22 +182,45 @@ function CallContent() {
 
   // 3. Initialize Simli WebRTC Live Stream
   const initSimliSession = async (faceId = selectedFaceId) => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !activeAvatar) return;
+
+    const sessionKey = `${activeAvatar.id}_${faceId}`;
+    if (isSimliConnected && currentConnectedKeyRef.current === sessionKey && simliClientRef.current) {
+      return;
+    }
+
+    if (isConnectingRef.current) {
+      return;
+    }
+
+    const seq = ++connectionSeqRef.current;
+    isConnectingRef.current = true;
     setIsSimliConnecting(true);
     setCallStatus("Connecting to Simli 16:9 Stream...");
 
-    // Stop previous instance if exists
+    // Stop previous client cleanly if one was active
     if (simliClientRef.current) {
-      try {
-        await simliClientRef.current.stop();
-      } catch {}
+      const prevClient = simliClientRef.current;
       simliClientRef.current = null;
       audioContextSourceAttached.current = false;
+      await stopSimliClient(prevClient);
+    }
+
+    // Check if superseded while stopping
+    if (connectionSeqRef.current !== seq) {
+      isConnectingRef.current = false;
+      return;
     }
 
     try {
-      const { SimliClient } = await import("simli-client");
-      const tokenRes = await api.getSimliToken(activeAvatar?.id, faceId);
+      const { SimliClient, LogLevel } = await import("simli-client");
+      const tokenRes = await api.getSimliToken(activeAvatar.id, faceId);
+
+      // Check if superseded during async token fetch
+      if (connectionSeqRef.current !== seq) {
+        isConnectingRef.current = false;
+        return;
+      }
 
       if (!tokenRes?.session_token) {
         throw new Error("No session token received from Simli");
@@ -176,47 +231,76 @@ function CallContent() {
           tokenRes.session_token,
           simliVideoRef.current,
           simliAudioRef.current,
-          null
+          null,
+          LogLevel.INFO
         );
 
+        // Store reference immediately so cleanup can cancel if component unmounts
+        simliClientRef.current = client;
+
         client.on("start", () => {
+          if (connectionSeqRef.current !== seq) return;
           console.log("[Simli] WebRTC 16:9 Stream Started!");
+          currentConnectedKeyRef.current = sessionKey;
           setIsSimliConnected(true);
           setIsSimliConnecting(false);
+          isConnectingRef.current = false;
           setCallStatus("Live 16:9 Stream Active");
         });
 
         client.on("stop", () => {
+          if (connectionSeqRef.current !== seq) return;
           console.log("[Simli] WebRTC Stream stopped");
           setIsSimliConnected(false);
           setIsSimliConnecting(false);
+          isConnectingRef.current = false;
           setCallStatus("Stream Paused");
         });
 
         client.on("speaking", () => {
+          if (connectionSeqRef.current !== seq) return;
           setIsSpeaking(true);
         });
 
         client.on("silent", () => {
+          if (connectionSeqRef.current !== seq) return;
           setIsSpeaking(false);
         });
 
         client.on("error", (err) => {
-          console.warn("[Simli] WebRTC error:", err);
+          const errMsg = typeof err === "string" ? err : err?.message || "";
+          if (errMsg.includes("Client initiated disconnect") || errMsg.includes("disconnect")) {
+            return;
+          }
+          if (connectionSeqRef.current !== seq) return;
+          console.warn("[Simli] WebRTC notice:", errMsg);
           setIsSimliConnected(false);
           setIsSimliConnecting(false);
+          isConnectingRef.current = false;
           setCallStatus("Stream Offline (Photo Mode)");
         });
 
         client.on("startup_error", (err) => {
-          console.warn("[Simli] Startup error:", err);
+          const errMsg = typeof err === "string" ? err : err?.message || "";
+          if (errMsg.includes("Client initiated disconnect") || errMsg.includes("disconnect")) {
+            return;
+          }
+          if (connectionSeqRef.current !== seq) return;
+          console.warn("[Simli] Startup notice:", errMsg);
           setIsSimliConnected(false);
           setIsSimliConnecting(false);
+          isConnectingRef.current = false;
           setCallStatus("Interactive Mode");
         });
 
         await client.start();
-        simliClientRef.current = client;
+
+        // If superseded while starting, cleanly stop
+        if (connectionSeqRef.current !== seq) {
+          await stopSimliClient(client);
+          isConnectingRef.current = false;
+          return;
+        }
 
         // Attach companion audio element for automatic lip-sync
         if (companionAudioRef.current && !audioContextSourceAttached.current) {
@@ -229,10 +313,21 @@ function CallContent() {
         }
       }
     } catch (err) {
-      console.warn("Simli WebRTC initialization notice:", err);
-      setIsSimliConnecting(false);
-      setIsSimliConnected(false);
-      setCallStatus("Interactive Mode");
+      const errMsg = err?.message || String(err);
+      if (errMsg.includes("Client initiated disconnect") || errMsg.includes("disconnect")) {
+        isConnectingRef.current = false;
+        return;
+      }
+      if (connectionSeqRef.current === seq) {
+        console.warn("Simli WebRTC initialization notice:", err);
+        setIsSimliConnected(false);
+        setCallStatus("Interactive Mode");
+      }
+    } finally {
+      if (connectionSeqRef.current === seq) {
+        setIsSimliConnecting(false);
+        isConnectingRef.current = false;
+      }
     }
   };
 
@@ -242,12 +337,13 @@ function CallContent() {
       initSimliSession(selectedFaceId);
     }
     return () => {
+      connectionSeqRef.current += 1;
       if (simliClientRef.current) {
-        try {
-          simliClientRef.current.stop();
-        } catch {}
+        const client = simliClientRef.current;
         simliClientRef.current = null;
+        stopSimliClient(client);
       }
+      currentConnectedKeyRef.current = "";
     };
   }, [activeAvatar?.id, selectedFaceId]);
 
@@ -387,15 +483,14 @@ function CallContent() {
   };
 
   // 7. End Call
-  const handleEndCall = () => {
+  const handleEndCall = async () => {
     if (companionAudioRef.current) {
       companionAudioRef.current.pause();
     }
     if (simliClientRef.current) {
-      try {
-        simliClientRef.current.stop();
-      } catch {}
+      const client = simliClientRef.current;
       simliClientRef.current = null;
+      await stopSimliClient(client);
     }
     if (recognitionRef.current) {
       try {
