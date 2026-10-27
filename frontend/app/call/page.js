@@ -17,7 +17,6 @@ import {
   Send,
   Loader2,
   Video,
-  Box,
   Radio,
   Clock,
   Heart,
@@ -25,7 +24,6 @@ import {
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
-import PhotoAvatar3D from "../../components/call/PhotoAvatar3D";
 import { AvatarVideoPlayer } from "../../components/chat/AvatarVideoPlayer";
 import { AvatarPhotoUpload } from "../../components/chat/AvatarPhotoUpload";
 
@@ -42,8 +40,7 @@ function CallContent() {
   const [introVideoUrl, setIntroVideoUrl] = useState(null);
   const [currentVideoUrl, setCurrentVideoUrl] = useState(null);
 
-  // Experience modes: "3d" (Three.js Photo-to-3D Depth Avatar) or "video" (D-ID Video)
-  const [viewMode, setViewMode] = useState("3d");
+  // Video State
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [isGeneratingIntro, setIsGeneratingIntro] = useState(false);
 
@@ -299,7 +296,6 @@ function CallContent() {
     // If cached intro exists, replay it instantly!
     if (introVideoUrl) {
       setCurrentVideoUrl(introVideoUrl);
-      setViewMode("video");
       setIsPlayingVideo(true);
       return;
     }
@@ -317,13 +313,12 @@ function CallContent() {
       if (res?.video_url) {
         setIntroVideoUrl(res.video_url);
         setCurrentVideoUrl(res.video_url);
-        setViewMode("video");
         setIsPlayingVideo(true);
         setSubtitle(`Hello! It is so wonderful to see you. I am ${activeAvatar.name}.`);
       }
     } catch (err) {
       console.error("Failed to generate intro video:", err);
-      alert("Video generation was deferred. You can continue speaking with the 3D Avatar!");
+      alert("Video generation was deferred. You can still speak with your companion!");
     } finally {
       setIsGeneratingIntro(false);
     }
@@ -332,7 +327,6 @@ function CallContent() {
   // 6. Instant Replay Video
   const handleReplayVideo = () => {
     if (introVideoUrl || currentVideoUrl) {
-      setViewMode("video");
       setIsPlayingVideo(true);
       const url = currentVideoUrl || introVideoUrl;
       setCurrentVideoUrl(url);
@@ -400,50 +394,16 @@ function CallContent() {
           <span className="font-mono tracking-wider">{formatDuration(callDuration)}</span>
         </div>
 
-        {/* Right: View Mode Toggle (3D vs Video) & Avatar Selector */}
+        {/* Right: Photo Upload Button */}
         <div className="flex items-center gap-2">
-          {/* Mode Switcher */}
-          <div className="flex items-center bg-[#1A1A2E]/80 p-0.5 rounded-full border border-[#A58CF4]/25 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setViewMode("3d")}
-              className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
-                viewMode === "3d"
-                  ? "bg-[#433075] text-[#FAFAFA] shadow-md shadow-[#A58CF4]/25"
-                  : "text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA]"
-              }`}
-            >
-              <Box size={12} className="text-[#A58CF4]" />
-              <span>Avatar</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode("video");
-                if (introVideoUrl && !isPlayingVideo) {
-                  setIsPlayingVideo(true);
-                }
-              }}
-              className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
-                viewMode === "video"
-                  ? "bg-[#433075] text-[#FAFAFA] shadow-md shadow-[#A58CF4]/25"
-                  : "text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA]"
-              }`}
-            >
-              <Video size={12} className="text-[#A58CF4]" />
-              <span>Video</span>
-            </button>
-          </div>
-
-          {/* Photo Upload Icon */}
           <button
             type="button"
             onClick={() => setShowPhotoModal(true)}
-            className="p-2 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#A58CF4] transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#A58CF4] hover:text-[#FAFAFA] text-[11px] font-medium transition-all cursor-pointer"
             title="Upload Portrait Photo"
           >
-            <Camera size={15} />
+            <Camera size={13} />
+            <span>Update Photo</span>
           </button>
         </div>
       </header>
@@ -454,7 +414,7 @@ function CallContent() {
           <div className="flex flex-col items-center gap-3">
             <Loader2 size={36} className="text-[#A58CF4] animate-spin" />
             <p className="text-[13px] text-[rgba(250,250,250,0.7)] font-medium">
-              Connecting to holographic companion...
+              Connecting to video call...
             </p>
           </div>
         ) : !photoUrl ? (
@@ -463,9 +423,9 @@ function CallContent() {
             <div className="w-20 h-20 rounded-full bg-[#433075]/30 border border-[#A58CF4]/40 flex items-center justify-center mb-4 text-[#A58CF4]">
               <Camera size={34} />
             </div>
-            <h2 className="text-[18px] font-bold text-[#FAFAFA] mb-2">Upload Portrait for 3D Call</h2>
+            <h2 className="text-[18px] font-bold text-[#FAFAFA] mb-2">Upload Portrait for Video Call</h2>
             <p className="text-[12px] text-[rgba(250,250,250,0.65)] leading-relaxed mb-6">
-              Upload a front-facing photo to render your interactive 3D Depth Avatar and synthesize talking video greetings.
+              Upload a front-facing photo of your companion to enable live talking video greetings.
             </p>
             <AvatarPhotoUpload
               avatarId={activeAvatar?.id}
@@ -478,49 +438,29 @@ function CallContent() {
             />
           </div>
         ) : (
-          /* Avatar Viewport Frame */
+          /* Video Call Viewport Frame */
           <div className="relative w-full max-w-[460px] sm:max-w-[500px] h-[480px] sm:h-[540px] rounded-[36px] bg-[#0D0D0D]/85 border border-[#A58CF4]/25 shadow-[0_24px_80px_rgba(67,48,117,0.35)] overflow-hidden flex items-center justify-center backdrop-blur-2xl">
-            {/* Viewport Content: 3D Depth Avatar or Video Player */}
-            {viewMode === "3d" ? (
-              <PhotoAvatar3D
+            {/* Pure Video Call Player */}
+            <div className="w-full h-full relative flex items-center justify-center bg-[#0D0D0D]">
+              <AvatarVideoPlayer
+                ref={videoPlayerRef}
+                videoUrl={currentVideoUrl || introVideoUrl}
                 photoUrl={photoUrl}
-                isSpeaking={isSpeaking}
-                audioLevel={audioLevel}
-                avatarName={activeAvatar?.name || "Companion"}
-                className="w-full h-full"
+                isLoading={isGeneratingIntro}
+                isMuted={isMuted}
+                showReplayButton={false}
+                onVideoEnd={() => {
+                  setIsPlayingVideo(false);
+                }}
+                onReplay={() => {
+                  setIsPlayingVideo(true);
+                }}
+                size="full"
+                className="w-full h-full object-cover"
               />
-            ) : (
-              <div className="w-full h-full relative flex items-center justify-center bg-[#0D0D0D]">
-                <AvatarVideoPlayer
-                  ref={videoPlayerRef}
-                  videoUrl={currentVideoUrl || introVideoUrl}
-                  photoUrl={photoUrl}
-                  isLoading={isGeneratingIntro}
-                  isMuted={isMuted}
-                  showReplayButton={true}
-                  onVideoEnd={() => {
-                    setIsPlayingVideo(false);
-                  }}
-                  onReplay={() => {
-                    setIsPlayingVideo(true);
-                  }}
-                  size="full"
-                  className="w-full h-full object-cover"
-                />
+            </div>
 
-                {/* Return to 3D Button overlay */}
-                <button
-                  type="button"
-                  onClick={() => setViewMode("3d")}
-                  className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-[#A58CF4]/30 text-[#FAFAFA] text-[11px] font-medium hover:bg-[#433075]/70 transition-all z-20 cursor-pointer shadow-lg"
-                >
-                  <Box size={12} className="text-[#A58CF4]" />
-                  <span>Switch to Avatar</span>
-                </button>
-              </div>
-            )}
-
-            {/* Quick Action Badges on Avatar Frame */}
+            {/* Quick Action Badges on Video Frame */}
             <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-auto z-20">
               {/* Instant Replay Video Button (When video exists) */}
               {(introVideoUrl || currentVideoUrl) && (
@@ -557,10 +497,10 @@ function CallContent() {
                 </button>
               )}
 
-              {/* View Mode Quick Indicator */}
+              {/* Video Status Indicator */}
               <div className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-[#A58CF4]/20 text-[10.5px] text-[#A58CF4]">
                 <Radio size={10} className="text-emerald-400 animate-pulse" />
-                <span>{viewMode === "3d" ? "Real-time 3D Mesh" : "D-ID Talk Stream"}</span>
+                <span>{isPlayingVideo ? "Live Video Streaming" : "Video Call Active"}</span>
               </div>
             </div>
           </div>

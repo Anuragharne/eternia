@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
-import PhotoAvatar3D from "../../components/call/PhotoAvatar3D";
 
 function VoiceContent() {
   const searchParams = useSearchParams();
@@ -446,9 +445,9 @@ function VoiceContent() {
           <Link
             href={activeAvatar ? `/call?avatarId=${activeAvatar.id}` : "/call"}
             className="flex items-center gap-1 px-3 py-1 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[11px] text-[#A58CF4] hover:text-[#FAFAFA] transition-all no-underline"
-            title="Switch to 3D Video Call"
+            title="Switch to Video Call"
           >
-            <span>3D Video Call →</span>
+            <span>Video Call →</span>
           </Link>
         </div>
       </header>
@@ -482,16 +481,19 @@ function VoiceContent() {
                 }`}
               />
 
-              {/* Central Visual Representation: 3D Depth Avatar or Luminous Neural Orb */}
+              {/* Central Visual Representation: Natural Portrait Photo or Luminous Neural Orb */}
               {photoUrl ? (
                 <div className="w-64 h-64 sm:w-72 sm:h-72 rounded-full overflow-hidden border-2 border-[#A58CF4]/40 shadow-[0_16px_60px_rgba(67,48,117,0.6)] relative bg-[#0D0D0D]">
-                  <PhotoAvatar3D
-                    photoUrl={photoUrl}
-                    isSpeaking={callStatus === "speaking"}
-                    audioLevel={audioLevel}
-                    avatarName={activeAvatar?.name || "Companion"}
-                    className="w-full h-full"
+                  <img
+                    src={photoUrl}
+                    alt={activeAvatar?.name || "Companion"}
+                    className={`w-full h-full object-cover transition-transform duration-700 ${
+                      callStatus === "speaking" ? "scale-105" : "scale-100"
+                    }`}
                   />
+                  {callStatus === "speaking" && (
+                    <div className="absolute inset-0 bg-[#A58CF4]/10 pointer-events-none" />
+                  )}
                 </div>
               ) : (
                 <div className="w-56 h-56 rounded-full bg-gradient-to-tr from-[#433075] via-[#A58CF4]/40 to-[#0D0D0D] border-2 border-[#A58CF4]/50 flex flex-col items-center justify-center shadow-[0_0_60px_rgba(165,140,244,0.4)] relative">
