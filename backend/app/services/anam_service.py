@@ -48,67 +48,7 @@ class AnamService:
             logger.error("Error creating Anam avatar for %s: %s", name, exc)
             raise
 
-    def register_elevenlabs_key(self, api_key: Optional[str] = None) -> bool:
-        """Register the ElevenLabs API key in Anam's organization key vault."""
-        key = api_key or settings.ELEVENLABS_API_KEY
-        if not key:
-            raise ValueError("ELEVENLABS_API_KEY is not configured.")
-
-        url = f"{self.api_url}/voices/elevenlabs-key"
-        headers = self.get_headers()
-        headers["Content-Type"] = "application/json"
-        payload = {"apiKey": key}
-
-        res = requests.put(url, headers=headers, json=payload, timeout=20)
-        if res.status_code not in (200, 204):
-            logger.error("Failed to register ElevenLabs key in Anam [%d]: %s", res.status_code, res.text)
-            raise RuntimeError(f"Anam ElevenLabs key registration failed: {res.text}")
-
-        logger.info("Successfully registered ElevenLabs key in Anam.ai vault.")
-        return True
-
-    def import_elevenlabs_voice(self, provider_voice_id: str) -> str:
-        """Import a cloned ElevenLabs voice into Anam using the saved organization key.
-
-        Returns:
-            anam_voice_id: Anam's internal voice UUID mapped to the ElevenLabs voice.
-        """
-        # Ensure ElevenLabs key is registered first
-        try:
-            self.register_elevenlabs_key()
-        except Exception as k_err:
-            logger.warning("Notice on key sync before voice import: %s", k_err)
-
-        url = f"{self.api_url}/voice-imports"
-        headers = self.get_headers()
-        headers["Content-Type"] = "application/json"
-        payload = {
-            "provider": "ELEVENLABS",
-            "providerVoiceId": provider_voice_id,
-            "useOrganizationKey": True,
-        }
-
-        logger.info("Importing ElevenLabs voice %s into Anam...", provider_voice_id)
-        res = requests.post(url, headers=headers, json=payload, timeout=45)
-        if res.status_code not in (200, 201):
-            logger.error("Failed to import ElevenLabs voice into Anam [%d]: %s", res.status_code, res.text)
-            raise RuntimeError(f"Anam voice import failed: {res.text}")
-
-        result = res.json()
-        anam_voice_id = result.get("id")
-        if not anam_voice_id:
-            raise RuntimeError(f"No id in Anam voice import response: {result}")
-
-        logger.info("Successfully imported ElevenLabs voice into Anam: %s", anam_voice_id)
-        return anam_voice_id
-
-    def create_persona(
-        self,
-        avatar_id: str,
-        name: str,
-        voice_id: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-    ) -> str:
+    def create_persona(self, avatar_id: str, name: str, system_prompt: Optional[str] = None) -> str:
         """Create an Anam interactive persona linked to the digital avatar."""
         headers = self.get_headers()
         headers["Content-Type"] = "application/json"
@@ -118,13 +58,11 @@ class AnamService:
             or f"You are {name}, a close and caring companion on Eternia. You interact warmly, naturally, and supportively."
         )
 
-        selected_voice_id = voice_id or self.default_voice_id
-
         payload = {
             "name": name,
             "description": f"AI Companion {name} on Eternia",
             "avatarId": avatar_id,
-            "voiceId": selected_voice_id,
+            "voiceId": self.default_voice_id,
             "llmId": "CUSTOMER_CLIENT_V1",
             "systemPrompt": prompt,
         }
@@ -137,7 +75,7 @@ class AnamService:
 
         result = res.json()
         persona_id = result.get("id")
-        logger.info("Successfully created Anam persona: %s for %s (voice: %s)", persona_id, name, selected_voice_id)
+        logger.info("Successfully created Anam persona: %s for %s", persona_id, name)
         return persona_id
 
     def create_session_token(self, avatar_id: str) -> Dict[str, Any]:
@@ -167,13 +105,9 @@ class AnamService:
                 cfg["anam_avatar_id"] = anam_avatar_id
                 db.table("avatars").update({"persona_config": cfg}).eq("id", avatar_id).execute()
 
-        custom_voice_id = cfg.get("anam_voice_id")
-        current_persona_voice = cfg.get("anam_persona_voice_id")
-
-        if anam_avatar_id and (not anam_persona_id or (custom_voice_id and custom_voice_id != current_persona_voice)):
-            anam_persona_id = self.create_persona(anam_avatar_id, name, voice_id=custom_voice_id)
+        if not anam_persona_id and anam_avatar_id:
+            anam_persona_id = self.create_persona(anam_avatar_id, name)
             cfg["anam_persona_id"] = anam_persona_id
-            cfg["anam_persona_voice_id"] = custom_voice_id or self.default_voice_id
             db.table("avatars").update({"persona_config": cfg}).eq("id", avatar_id).execute()
 
         if not anam_persona_id:

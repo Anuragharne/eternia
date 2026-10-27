@@ -5,7 +5,6 @@ import logging
 import uuid
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-
 from backend.app.core.auth import get_current_user
 from backend.app.core.errors import AvatarNotFoundError, ForbiddenError
 from backend.app.models.database import get_supabase_admin_client
