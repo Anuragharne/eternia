@@ -361,18 +361,34 @@ function CallContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-[#FAFAFA] flex flex-col relative overflow-hidden select-none">
+    <div
+      className="min-h-screen flex flex-col relative overflow-hidden select-none"
+      style={{ background: "var(--void)", color: "var(--text-0)" }}
+    >
       {/* Background Ambient Glow Lights */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-[#433075]/40 via-[#A58CF4]/20 to-transparent blur-3xl pointer-events-none -z-10" />
+      <div
+        className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-3xl pointer-events-none -z-10"
+        style={{
+          background: "radial-gradient(circle, rgba(124, 79, 240, 0.35) 0%, rgba(79, 70, 229, 0.15) 50%, transparent 70%)",
+        }}
+      />
 
       {/* Top Header Bar */}
-      <header className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-[#A58CF4]/15 bg-[#0D0D0D]/70 backdrop-blur-xl z-20">
+      <header
+        className="h-16 px-4 sm:px-6 flex items-center justify-between z-20"
+        style={{
+          background: "var(--surface-0)",
+          borderBottom: "1px solid var(--border-0)",
+          backdropFilter: "blur(20px)",
+        }}
+      >
         <div className="flex items-center gap-3">
           <Link
             href={activeAvatar ? `/chat?avatarId=${activeAvatar.id}` : "/chat"}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#FAFAFA] text-[12px] font-medium transition-all no-underline"
+            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+            style={{ textDecoration: "none", fontSize: 12, padding: "6px 12px" }}
           >
-            <ArrowLeft size={14} className="text-[#A58CF4]" />
+            <ArrowLeft size={14} style={{ color: "var(--brand-glow)" }} />
             <span className="hidden sm:inline">Back to Chat</span>
           </Link>
 
@@ -380,13 +396,20 @@ function CallContent() {
             <div className="flex items-center gap-2.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400" />
               <div>
-                <h1 className="text-[14px] font-semibold tracking-wide text-[#FAFAFA] leading-tight flex items-center gap-1.5">
+                <h1 className="text-[14px] font-semibold tracking-wide leading-tight flex items-center gap-1.5" style={{ color: "var(--text-0)" }}>
                   {activeAvatar.name}
-                  <span className="text-[10.5px] px-2 py-0.2 rounded-full bg-[#433075]/40 text-[#A58CF4] border border-[#A58CF4]/20 font-normal">
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded-full font-normal"
+                    style={{
+                      background: "rgba(124, 79, 240, 0.15)",
+                      color: "var(--lavender)",
+                      border: "1px solid rgba(124, 79, 240, 0.25)",
+                    }}
+                  >
                     {activeAvatar.relationship || "Companion"}
                   </span>
                 </h1>
-                <p className="text-[10px] text-[rgba(250,250,250,0.6)]">
+                <p className="text-[10px]" style={{ color: "var(--text-2)" }}>
                   Live Holographic Call • {callStatus}
                 </p>
               </div>
@@ -395,26 +418,40 @@ function CallContent() {
         </div>
 
         {/* Center: Call Duration Pill */}
-        <div className="hidden md:flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#433075]/25 border border-[#A58CF4]/20 text-[12px] text-[#FAFAFA]">
-          <Clock size={13} className="text-[#A58CF4]" />
+        <div
+          className="hidden md:flex items-center gap-2 px-3.5 py-1 rounded-full text-[12px]"
+          style={{
+            background: "var(--surface-1)",
+            border: "1px solid var(--border-0)",
+            color: "var(--text-0)",
+          }}
+        >
+          <Clock size={13} style={{ color: "var(--lavender)" }} />
           <span className="font-mono tracking-wider">{formatDuration(callDuration)}</span>
         </div>
 
-        {/* Right: View Mode Toggle (3D vs Video) & Avatar Selector */}
+        {/* Right: View Mode Toggle (3D vs Video) & Photo Modal Trigger */}
         <div className="flex items-center gap-2">
           {/* Mode Switcher */}
-          <div className="flex items-center bg-[#1A1A2E]/80 p-0.5 rounded-full border border-[#A58CF4]/25 shadow-inner">
+          <div
+            className="flex items-center p-0.5 rounded-full shadow-inner"
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border-1)",
+            }}
+          >
             <button
               type="button"
               onClick={() => setViewMode("3d")}
-              className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
-                viewMode === "3d"
-                  ? "bg-[#433075] text-[#FAFAFA] shadow-md shadow-[#A58CF4]/25"
-                  : "text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA]"
-              }`}
+              className="flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer"
+              style={{
+                background: viewMode === "3d" ? "linear-gradient(135deg, #FFD166, #FFBE3B)" : "transparent",
+                color: viewMode === "3d" ? "#1A0824" : "var(--text-1)",
+                boxShadow: viewMode === "3d" ? "0 2px 10px rgba(255, 209, 102, 0.4)" : "none",
+              }}
             >
-              <Box size={12} className="text-[#A58CF4]" />
-              <span>Avatar</span>
+              <Box size={12} />
+              <span>3D Mesh</span>
             </button>
 
             <button
@@ -425,13 +462,14 @@ function CallContent() {
                   setIsPlayingVideo(true);
                 }
               }}
-              className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
-                viewMode === "video"
-                  ? "bg-[#433075] text-[#FAFAFA] shadow-md shadow-[#A58CF4]/25"
-                  : "text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA]"
-              }`}
+              className="flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer"
+              style={{
+                background: viewMode === "video" ? "linear-gradient(135deg, #FFD166, #FFBE3B)" : "transparent",
+                color: viewMode === "video" ? "#1A0824" : "var(--text-1)",
+                boxShadow: viewMode === "video" ? "0 2px 10px rgba(255, 209, 102, 0.4)" : "none",
+              }}
             >
-              <Video size={12} className="text-[#A58CF4]" />
+              <Video size={12} />
               <span>Video</span>
             </button>
           </div>
@@ -440,7 +478,12 @@ function CallContent() {
           <button
             type="button"
             onClick={() => setShowPhotoModal(true)}
-            className="p-2 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#A58CF4] transition-all cursor-pointer"
+            className="p-2 rounded-full transition-all cursor-pointer"
+            style={{
+              background: "rgba(255, 209, 102, 0.16)",
+              border: "1px solid rgba(255, 209, 102, 0.4)",
+              color: "var(--sunglow)",
+            }}
             title="Upload Portrait Photo"
           >
             <Camera size={15} />
@@ -452,19 +495,35 @@ function CallContent() {
       <main className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6 relative max-w-5xl mx-auto w-full">
         {isLoading ? (
           <div className="flex flex-col items-center gap-3">
-            <Loader2 size={36} className="text-[#A58CF4] animate-spin" />
-            <p className="text-[13px] text-[rgba(250,250,250,0.7)] font-medium">
+            <Loader2 size={36} className="animate-spin" style={{ color: "var(--brand-glow)" }} />
+            <p className="text-[13px] font-medium" style={{ color: "var(--text-1)" }}>
               Connecting to holographic companion...
             </p>
           </div>
         ) : !photoUrl ? (
           /* Empty Photo Prompt */
-          <div className="max-w-md w-full rounded-3xl bg-[#0D0D0D]/90 border border-[#A58CF4]/30 p-6 sm:p-8 text-center backdrop-blur-2xl shadow-2xl flex flex-col items-center">
-            <div className="w-20 h-20 rounded-full bg-[#433075]/30 border border-[#A58CF4]/40 flex items-center justify-center mb-4 text-[#A58CF4]">
+          <div
+            className="max-w-md w-full rounded-3xl p-6 sm:p-8 text-center shadow-2xl flex flex-col items-center"
+            style={{
+              background: "var(--surface-0)",
+              border: "1px solid var(--border-1)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
+            }}
+          >
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center mb-4"
+              style={{
+                background: "rgba(124, 79, 240, 0.15)",
+                border: "1px solid rgba(124, 79, 240, 0.35)",
+                color: "var(--brand-glow)",
+              }}
+            >
               <Camera size={34} />
             </div>
-            <h2 className="text-[18px] font-bold text-[#FAFAFA] mb-2">Upload Portrait for 3D Call</h2>
-            <p className="text-[12px] text-[rgba(250,250,250,0.65)] leading-relaxed mb-6">
+            <h2 className="text-[18px] font-bold mb-2" style={{ color: "var(--text-0)" }}>
+              Upload Portrait for 3D Call
+            </h2>
+            <p className="text-[12px] leading-relaxed mb-6" style={{ color: "var(--text-1)" }}>
               Upload a front-facing photo to render your interactive 3D Depth Avatar and synthesize talking video greetings.
             </p>
             <AvatarPhotoUpload
@@ -479,7 +538,14 @@ function CallContent() {
           </div>
         ) : (
           /* Avatar Viewport Frame */
-          <div className="relative w-full max-w-[460px] sm:max-w-[500px] h-[480px] sm:h-[540px] rounded-[36px] bg-[#0D0D0D]/85 border border-[#A58CF4]/25 shadow-[0_24px_80px_rgba(67,48,117,0.35)] overflow-hidden flex items-center justify-center backdrop-blur-2xl">
+          <div
+            className="relative w-full max-w-[460px] sm:max-w-[500px] h-[480px] sm:h-[540px] rounded-[36px] overflow-hidden flex items-center justify-center"
+            style={{
+              background: "var(--surface-0)",
+              border: "1px solid var(--border-1)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.75), 0 0 40px rgba(124, 79, 240, 0.15)",
+            }}
+          >
             {/* Viewport Content: 3D Depth Avatar or Video Player */}
             {viewMode === "3d" ? (
               <PhotoAvatar3D
@@ -490,7 +556,7 @@ function CallContent() {
                 className="w-full h-full"
               />
             ) : (
-              <div className="w-full h-full relative flex items-center justify-center bg-[#0D0D0D]">
+              <div className="w-full h-full relative flex items-center justify-center" style={{ background: "var(--void)" }}>
                 <AvatarVideoPlayer
                   ref={videoPlayerRef}
                   videoUrl={currentVideoUrl || introVideoUrl}
@@ -512,10 +578,17 @@ function CallContent() {
                 <button
                   type="button"
                   onClick={() => setViewMode("3d")}
-                  className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-[#A58CF4]/30 text-[#FAFAFA] text-[11px] font-medium hover:bg-[#433075]/70 transition-all z-20 cursor-pointer shadow-lg"
+                  className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all z-20 cursor-pointer shadow-lg"
+                  style={{
+                    background: "rgba(8, 11, 18, 0.75)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid var(--border-1)",
+                    color: "var(--text-0)",
+                    fontSize: 11,
+                  }}
                 >
-                  <Box size={12} className="text-[#A58CF4]" />
-                  <span>Switch to Avatar</span>
+                  <Box size={12} style={{ color: "var(--brand-glow)" }} />
+                  <span>Switch to 3D</span>
                 </button>
               </div>
             )}
@@ -527,10 +600,16 @@ function CallContent() {
                 <button
                   type="button"
                   onClick={handleReplayVideo}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0D0D0D]/80 backdrop-blur-md border border-[#A58CF4]/40 text-[#FAFAFA] text-[11px] font-medium hover:bg-[#433075]/80 transition-all cursor-pointer shadow-lg hover:scale-105"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-medium transition-all cursor-pointer shadow-lg hover:scale-105"
+                  style={{
+                    background: "rgba(8, 11, 18, 0.8)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid var(--border-brand)",
+                    color: "var(--text-0)",
+                  }}
                   title="Replay Video (0 Credits)"
                 >
-                  <RotateCcw size={12} className="text-[#A58CF4]" />
+                  <RotateCcw size={12} style={{ color: "var(--brand-glow)" }} />
                   <span>Replay Video</span>
                 </button>
               )}
@@ -541,16 +620,22 @@ function CallContent() {
                   type="button"
                   onClick={handlePlayOrGenerateIntro}
                   disabled={isGeneratingIntro}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#433075]/80 backdrop-blur-md border border-[#A58CF4]/40 text-[#FAFAFA] text-[11px] font-medium hover:bg-[#433075] transition-all cursor-pointer shadow-lg hover:scale-105 ml-auto"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-medium transition-all cursor-pointer shadow-lg hover:scale-105 ml-auto"
+                  style={{
+                    background: "linear-gradient(135deg, #FFD166 0%, #FFBE3B 100%)",
+                    color: "#1A0824",
+                    boxShadow: "0 0 16px rgba(255, 209, 102, 0.4)",
+                    fontWeight: 700,
+                  }}
                 >
                   {isGeneratingIntro ? (
                     <>
-                      <Loader2 size={12} className="animate-spin text-[#A58CF4]" />
+                      <Loader2 size={12} className="animate-spin text-[#1A0824]" />
                       <span>Synthesizing...</span>
                     </>
                   ) : (
                     <>
-                      <Sparkles size={12} className="text-[#A58CF4]" />
+                      <Sparkles size={12} color="#1A0824" />
                       <span>Generate Intro Video</span>
                     </>
                   )}
@@ -558,7 +643,15 @@ function CallContent() {
               )}
 
               {/* View Mode Quick Indicator */}
-              <div className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-[#A58CF4]/20 text-[10.5px] text-[#A58CF4]">
+              <div
+                className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px]"
+                style={{
+                  background: "rgba(8, 11, 18, 0.75)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid var(--border-0)",
+                  color: "var(--lavender)",
+                }}
+              >
                 <Radio size={10} className="text-emerald-400 animate-pulse" />
                 <span>{viewMode === "3d" ? "Real-time 3D Mesh" : "D-ID Talk Stream"}</span>
               </div>
@@ -567,17 +660,30 @@ function CallContent() {
         )}
 
         {/* Live Subtitle & Transcript Card */}
-        <div className="w-full max-w-[460px] sm:max-w-[500px] mt-4 p-3.5 sm:p-4 rounded-2xl bg-[#0D0D0D]/80 backdrop-blur-xl border border-[#A58CF4]/20 shadow-lg">
+        <div
+          className="w-full max-w-[460px] sm:max-w-[500px] mt-4 p-3.5 sm:p-4 rounded-2xl shadow-lg"
+          style={{
+            background: "var(--surface-0)",
+            border: "1px solid var(--border-0)",
+          }}
+        >
           <div className="flex items-start gap-2.5">
-            <div className="w-6 h-6 rounded-full bg-[#433075]/60 border border-[#A58CF4]/30 flex items-center justify-center shrink-0 mt-0.5 text-[#A58CF4]">
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+              style={{
+                background: "rgba(124, 79, 240, 0.15)",
+                border: "1px solid rgba(124, 79, 240, 0.3)",
+                color: "var(--brand-glow)",
+              }}
+            >
               <Heart size={12} />
             </div>
             <div className="flex-1">
-              <p className="text-[12.5px] leading-relaxed text-[#FAFAFA] font-medium">
+              <p className="text-[12.5px] leading-relaxed font-medium" style={{ color: "var(--text-0)" }}>
                 {subtitle || `${activeAvatar?.name || "Companion"} is ready to speak with you.`}
               </p>
               {transcript && (
-                <p className="text-[11px] text-[#A58CF4] italic mt-1.5 flex items-center gap-1">
+                <p className="text-[11px] italic mt-1.5 flex items-center gap-1" style={{ color: "var(--brand-glow)" }}>
                   <Mic size={11} className="animate-pulse" />
                   &ldquo;{transcript}&rdquo;
                 </p>
@@ -601,12 +707,17 @@ function CallContent() {
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder={`Say something to ${activeAvatar?.name || "companion"}...`}
-            className="flex-1 px-4 py-2.5 rounded-full bg-[#1A1A2E]/80 border border-[#A58CF4]/25 text-[12px] text-[#FAFAFA] placeholder:text-[rgba(250,250,250,0.4)] focus:outline-none focus:border-[#A58CF4] transition-all"
+            className="flex-1 px-4 py-2.5 rounded-full text-[12px] transition-all"
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border-1)",
+              color: "var(--text-0)",
+            }}
           />
           <button
             type="submit"
             disabled={!textInput.trim()}
-            className="p-2.5 rounded-full bg-[#433075] hover:bg-[#A58CF4]/80 disabled:opacity-40 text-[#FAFAFA] transition-all cursor-pointer shadow-md"
+            className="btn btn-primary btn-sm flex items-center justify-center p-2.5 rounded-full disabled:opacity-40 cursor-pointer"
             title="Send Message"
           >
             <Send size={14} />
@@ -616,16 +727,24 @@ function CallContent() {
 
       {/* Bottom Floating Call Control Dock */}
       <footer className="p-4 sm:p-6 flex justify-center z-20">
-        <div className="flex items-center gap-3 sm:gap-5 px-6 py-3 rounded-full bg-[#0D0D0D]/90 backdrop-blur-2xl border border-[#A58CF4]/30 shadow-[0_16px_50px_rgba(13,13,13,0.8)]">
+        <div
+          className="flex items-center gap-3 sm:gap-5 px-6 py-3 rounded-full shadow-2xl"
+          style={{
+            background: "var(--surface-0)",
+            border: "1px solid var(--border-1)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.7)",
+          }}
+        >
           {/* Mute Button */}
           <button
             type="button"
             onClick={toggleMute}
-            className={`p-3 rounded-full transition-all cursor-pointer border ${
-              isMuted
-                ? "bg-red-950/60 border-red-500/40 text-red-400"
-                : "bg-[#433075]/40 hover:bg-[#433075]/70 border-[#A58CF4]/25 text-[#FAFAFA]"
-            }`}
+            className="p-3 rounded-full transition-all cursor-pointer"
+            style={{
+              background: isMuted ? "rgba(248, 113, 113, 0.15)" : "var(--surface-1)",
+              border: isMuted ? "1px solid rgba(248, 113, 113, 0.4)" : "1px solid var(--border-0)",
+              color: isMuted ? "var(--danger)" : "var(--text-0)",
+            }}
             title={isMuted ? "Unmute" : "Mute"}
           >
             {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
@@ -638,8 +757,15 @@ function CallContent() {
             className={`p-4 rounded-full transition-all cursor-pointer flex items-center justify-center shadow-xl ${
               isListening
                 ? "bg-rose-600 border-2 border-rose-300 text-white animate-pulse scale-110 shadow-rose-600/50"
-                : "bg-gradient-to-r from-[#433075] to-[#A58CF4] text-white hover:scale-105 shadow-[#A58CF4]/30 border border-white/20"
+                : "text-white hover:scale-105"
             }`}
+            style={{
+              background:
+                isListening
+                  ? undefined
+                  : "linear-gradient(135deg, #7C4FF0, #9D6FF4)",
+              boxShadow: "0 0 24px rgba(124, 79, 240, 0.5)",
+            }}
             title={isListening ? "Listening... Click to send" : "Click to Talk"}
           >
             {isListening ? <MicOff size={24} /> : <Mic size={24} />}
@@ -650,10 +776,15 @@ function CallContent() {
             <button
               type="button"
               onClick={handleReplayVideo}
-              className="p-3 rounded-full bg-[#433075]/40 hover:bg-[#433075]/70 border border-[#A58CF4]/25 text-[#FAFAFA] transition-all cursor-pointer hover:scale-105"
+              className="p-3 rounded-full transition-all cursor-pointer hover:scale-105"
+              style={{
+                background: "var(--surface-1)",
+                border: "1px solid var(--border-0)",
+                color: "var(--text-0)",
+              }}
               title="Replay Video (0 Credits)"
             >
-              <RotateCcw size={18} className="text-[#A58CF4]" />
+              <RotateCcw size={18} style={{ color: "var(--brand-glow)" }} />
             </button>
           )}
 
@@ -661,7 +792,7 @@ function CallContent() {
           <button
             type="button"
             onClick={handleEndCall}
-            className="p-3 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white transition-all cursor-pointer border border-rose-400/30 shadow-lg hover:scale-105"
+            className="p-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white transition-all cursor-pointer shadow-lg hover:scale-105"
             title="End Call"
           >
             <PhoneOff size={18} />
@@ -672,15 +803,22 @@ function CallContent() {
       {/* Photo Upload Modal */}
       {showPhotoModal && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-[#0D0D0D] border border-[#A58CF4]/30 p-6 shadow-2xl relative">
+          <div
+            className="w-full max-w-sm rounded-3xl p-6 shadow-2xl relative"
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border-1)",
+            }}
+          >
             <button
               type="button"
               onClick={() => setShowPhotoModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-full text-[rgba(250,250,250,0.5)] hover:text-[#FAFAFA] transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1 rounded-full transition-colors cursor-pointer text-[18px]"
+              style={{ color: "var(--text-2)" }}
             >
               ✕
             </button>
-            <h3 className="text-[16px] font-bold text-[#FAFAFA] mb-4 text-center">
+            <h3 className="text-[16px] font-bold mb-4 text-center" style={{ color: "var(--text-0)" }}>
               Update Portrait Photo
             </h3>
             <AvatarPhotoUpload
@@ -703,8 +841,11 @@ export default function CallPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center text-[#FAFAFA]">
-          <Loader2 size={36} className="text-[#A58CF4] animate-spin" />
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: "var(--void)", color: "var(--text-0)" }}
+        >
+          <Loader2 size={36} className="animate-spin" style={{ color: "var(--brand-glow)" }} />
         </div>
       }
     >

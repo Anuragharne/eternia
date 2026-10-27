@@ -367,51 +367,69 @@ function VoiceContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-[#FAFAFA] flex flex-col relative overflow-hidden select-none">
-      {/* Dynamic Ambient Background Glow in Eternia Purple & Lavender */}
+    <div
+      className="min-h-screen flex flex-col relative overflow-hidden select-none"
+      style={{ background: "var(--void)", color: "var(--text-0)" }}
+    >
+      {/* Dynamic Ambient Background Glow in Dark Purple, Wisteria, and Sunglow */}
       <div
         className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[650px] rounded-full pointer-events-none -z-10 blur-3xl transition-all duration-700"
         style={{
           background:
             callStatus === "listening"
-              ? "radial-gradient(circle, rgba(239, 68, 68, 0.35) 0%, rgba(67, 48, 117, 0.6) 45%, transparent 70%)"
+              ? "radial-gradient(circle, rgba(255, 209, 102, 0.35) 0%, rgba(188, 150, 230, 0.25) 45%, transparent 70%)"
               : callStatus === "speaking"
-              ? "radial-gradient(circle, rgba(165, 140, 244, 0.45) 0%, rgba(67, 48, 117, 0.75) 45%, transparent 70%)"
-              : "radial-gradient(circle, rgba(67, 48, 117, 0.85) 0%, rgba(165, 140, 244, 0.25) 45%, transparent 70%)",
+              ? "radial-gradient(circle, rgba(255, 209, 102, 0.45) 0%, rgba(33, 11, 44, 0.6) 45%, transparent 70%)"
+              : "radial-gradient(circle, rgba(188, 150, 230, 0.35) 0%, rgba(33, 11, 44, 0.5) 45%, transparent 70%)",
         }}
       />
 
       {/* Top Header Bar */}
-      <header className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-[#A58CF4]/15 bg-[#0D0D0D]/75 backdrop-blur-xl z-20">
+      <header
+        className="h-16 px-4 sm:px-6 flex items-center justify-between z-20"
+        style={{
+          background: "var(--surface-0)",
+          borderBottom: "1px solid var(--border-1)",
+          backdropFilter: "blur(20px)",
+        }}
+      >
         <div className="flex items-center gap-3">
           <Link
             href={activeAvatar ? `/chat?avatarId=${activeAvatar.id}` : "/chat"}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#FAFAFA] text-[12px] font-medium transition-all no-underline"
+            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+            style={{ textDecoration: "none", fontSize: 12, padding: "6px 12px" }}
           >
-            <ArrowLeft size={14} className="text-[#A58CF4]" />
+            <ArrowLeft size={14} style={{ color: "var(--sunglow)" }} />
             <span className="hidden sm:inline">Back to Chat</span>
           </Link>
 
           {activeAvatar && (
             <div className="flex items-center gap-2.5">
               <span
-                className={`w-2.5 h-2.5 rounded-full animate-pulse ${
+                className={`w-2.5 h-2.5 rounded-full ${
                   callStatus === "listening"
-                    ? "bg-rose-500 shadow-sm shadow-rose-500"
+                    ? "bg-[#FFD166] shadow-sm shadow-[#FFD166] animate-pulse"
                     : callStatus === "speaking"
-                    ? "bg-emerald-400 shadow-sm shadow-emerald-400"
-                    : "bg-[#A58CF4]"
+                    ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse"
+                    : "bg-[#BC96E6]"
                 }`}
               />
               <div>
-                <h1 className="text-[14px] font-semibold tracking-wide text-[#FAFAFA] leading-tight flex items-center gap-1.5">
+                <h1 className="text-[14px] font-semibold tracking-wide leading-tight flex items-center gap-1.5" style={{ color: "#FAF6FF" }}>
                   {activeAvatar.name}
-                  <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#433075]/40 text-[#A58CF4] border border-[#A58CF4]/20 font-normal">
+                  <span
+                    className="text-[10px] px-2.5 py-0.5 rounded-full font-bold"
+                    style={{
+                      background: "rgba(255, 209, 102, 0.15)",
+                      color: "var(--sunglow)",
+                      border: "1px solid rgba(255, 209, 102, 0.4)",
+                    }}
+                  >
                     {activeAvatar.relationship || "Companion"}
                   </span>
                 </h1>
-                <p className="text-[10px] text-[rgba(250,250,250,0.6)] flex items-center gap-1">
-                  <Volume2 size={10} className="text-[#A58CF4]" />
+                <p className="text-[10.5px] flex items-center gap-1" style={{ color: "var(--text-2)" }}>
+                  <Volume2 size={10} style={{ color: "var(--sunglow)" }} />
                   <span>{voiceInfo ? `${voiceInfo.voice_name} Voice` : "Neural Voice"}</span>
                 </p>
               </div>
@@ -420,8 +438,15 @@ function VoiceContent() {
         </div>
 
         {/* Center: Duration Pill */}
-        <div className="hidden sm:flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#433075]/25 border border-[#A58CF4]/20 text-[12px] text-[#FAFAFA]">
-          <Clock size={13} className="text-[#A58CF4]" />
+        <div
+          className="hidden sm:flex items-center gap-2 px-3.5 py-1 rounded-full text-[12px]"
+          style={{
+            background: "var(--surface-1)",
+            border: "1px solid var(--border-0)",
+            color: "var(--text-0)",
+          }}
+        >
+          <Clock size={13} style={{ color: "var(--lavender)" }} />
           <span className="font-mono tracking-wider">{formatDuration(callDuration)}</span>
         </div>
 
@@ -431,21 +456,23 @@ function VoiceContent() {
           <button
             type="button"
             onClick={() => setIsHandsFree(!isHandsFree)}
-            className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer border ${
-              isHandsFree
-                ? "bg-[#433075] text-[#FAFAFA] border-[#A58CF4]/40 shadow-sm shadow-[#A58CF4]/20"
-                : "bg-transparent text-[rgba(250,250,250,0.6)] border-white/10 hover:text-[#FAFAFA]"
-            }`}
+            className="flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer"
+            style={{
+              background: isHandsFree ? "rgba(124, 79, 240, 0.2)" : "transparent",
+              color: isHandsFree ? "var(--text-0)" : "var(--text-2)",
+              border: isHandsFree ? "1px solid var(--brand)" : "1px solid var(--border-0)",
+            }}
             title="Auto-listen after companion speaks"
           >
-            <Sparkles size={11} className={isHandsFree ? "text-[#A58CF4]" : "text-gray-400"} />
+            <Sparkles size={11} style={{ color: isHandsFree ? "var(--brand-glow)" : "var(--text-2)" }} />
             <span>Hands-free: {isHandsFree ? "ON" : "OFF"}</span>
           </button>
 
           {/* Link to Video Call */}
           <Link
             href={activeAvatar ? `/call?avatarId=${activeAvatar.id}` : "/call"}
-            className="flex items-center gap-1 px-3 py-1 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[11px] text-[#A58CF4] hover:text-[#FAFAFA] transition-all no-underline"
+            className="btn btn-secondary btn-sm"
+            style={{ textDecoration: "none", fontSize: 11, padding: "5px 12px" }}
             title="Switch to 3D Video Call"
           >
             <span>3D Video Call →</span>
@@ -457,8 +484,8 @@ function VoiceContent() {
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 relative max-w-4xl mx-auto w-full">
         {isLoading ? (
           <div className="flex flex-col items-center gap-3">
-            <Loader2 size={36} className="text-[#A58CF4] animate-spin" />
-            <p className="text-[13px] text-[rgba(250,250,250,0.7)] font-medium">
+            <Loader2 size={36} className="animate-spin" style={{ color: "var(--brand-glow)" }} />
+            <p className="text-[13px] font-medium" style={{ color: "var(--text-1)" }}>
               Connecting to voice presence...
             </p>
           </div>
@@ -468,23 +495,37 @@ function VoiceContent() {
             <div className="relative w-72 h-72 sm:w-80 sm:h-80 rounded-full flex items-center justify-center mb-6">
               {/* Outer Pulsing Soundwave Rings */}
               <div
-                className={`absolute inset-0 rounded-full border border-[#A58CF4]/30 pointer-events-none transition-all duration-500 ${
+                className={`absolute inset-0 rounded-full pointer-events-none transition-all duration-500 ${
                   callStatus === "speaking"
-                    ? "scale-115 opacity-80 border-[#A58CF4] animate-ping"
+                    ? "scale-115 opacity-80 animate-ping"
                     : callStatus === "listening"
-                    ? "scale-110 opacity-70 border-rose-400 animate-pulse"
+                    ? "scale-110 opacity-70 animate-pulse"
                     : "scale-100 opacity-20"
                 }`}
+                style={{
+                  border:
+                    callStatus === "listening"
+                      ? "1px solid rgba(255, 209, 102, 0.7)"
+                      : "1px solid rgba(188, 150, 230, 0.4)",
+                }}
               />
               <div
-                className={`absolute -inset-4 rounded-full border border-[#433075]/40 pointer-events-none transition-all duration-700 ${
+                className={`absolute -inset-4 rounded-full pointer-events-none transition-all duration-700 ${
                   callStatus === "speaking" ? "scale-125 opacity-40 animate-pulse" : "opacity-10"
                 }`}
+                style={{ border: "1px solid rgba(255, 209, 102, 0.35)" }}
               />
 
               {/* Central Visual Representation: 3D Depth Avatar or Luminous Neural Orb */}
               {photoUrl ? (
-                <div className="w-64 h-64 sm:w-72 sm:h-72 rounded-full overflow-hidden border-2 border-[#A58CF4]/40 shadow-[0_16px_60px_rgba(67,48,117,0.6)] relative bg-[#0D0D0D]">
+                <div
+                  className="w-64 h-64 sm:w-72 sm:h-72 rounded-full overflow-hidden relative"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "2px solid rgba(255, 209, 102, 0.5)",
+                    boxShadow: "0 16px 60px rgba(18, 5, 24, 0.8)",
+                  }}
+                >
                   <PhotoAvatar3D
                     photoUrl={photoUrl}
                     isSpeaking={callStatus === "speaking"}
@@ -494,21 +535,35 @@ function VoiceContent() {
                   />
                 </div>
               ) : (
-                <div className="w-56 h-56 rounded-full bg-gradient-to-tr from-[#433075] via-[#A58CF4]/40 to-[#0D0D0D] border-2 border-[#A58CF4]/50 flex flex-col items-center justify-center shadow-[0_0_60px_rgba(165,140,244,0.4)] relative">
-                  <span className="text-5xl font-bold text-[#FAFAFA] opacity-90 mb-1">
+                <div
+                  className="w-56 h-56 rounded-full flex flex-col items-center justify-center relative"
+                  style={{
+                    background: "radial-gradient(circle, #FFD166 0%, #BC96E6 40%, #210B2C 80%)",
+                    border: "2px solid rgba(255, 209, 102, 0.6)",
+                    boxShadow: "0 0 60px rgba(255, 209, 102, 0.45)",
+                  }}
+                >
+                  <span className="text-5xl font-bold mb-1 opacity-90" style={{ color: "var(--text-0)" }}>
                     {activeAvatar?.name?.charAt(0).toUpperCase()}
                   </span>
                   <div className="flex items-center gap-1 mt-2">
-                    <span className="w-1.5 h-6 rounded-full bg-[#A58CF4] animate-bounce" />
-                    <span className="w-1.5 h-10 rounded-full bg-[#FAFAFA] animate-bounce [animation-delay:0.15s]" />
-                    <span className="w-1.5 h-7 rounded-full bg-[#A58CF4] animate-bounce [animation-delay:0.3s]" />
-                    <span className="w-1.5 h-4 rounded-full bg-[#FAFAFA] animate-bounce [animation-delay:0.45s]" />
+                    <span className="w-1.5 h-6 rounded-full bg-[#B89FF8] animate-bounce" />
+                    <span className="w-1.5 h-10 rounded-full bg-white animate-bounce [animation-delay:0.15s]" />
+                    <span className="w-1.5 h-7 rounded-full bg-[#B89FF8] animate-bounce [animation-delay:0.3s]" />
+                    <span className="w-1.5 h-4 rounded-full bg-white animate-bounce [animation-delay:0.45s]" />
                   </div>
                 </div>
               )}
 
               {/* Status Pill on Orb */}
-              <div className="absolute -bottom-3 flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#0D0D0D]/90 backdrop-blur-md border border-[#A58CF4]/30 shadow-lg text-[11px] font-medium text-[#FAFAFA]">
+              <div
+                className="absolute -bottom-3 flex items-center gap-1.5 px-3.5 py-1 rounded-full text-[11px] font-medium shadow-lg"
+                style={{
+                  background: "var(--surface-1)",
+                  border: "1px solid var(--border-1)",
+                  color: "var(--text-0)",
+                }}
+              >
                 <Radio
                   size={11}
                   className={
@@ -516,7 +571,7 @@ function VoiceContent() {
                       ? "text-emerald-400 animate-pulse"
                       : callStatus === "listening"
                       ? "text-rose-400 animate-ping"
-                      : "text-[#A58CF4]"
+                      : "text-[#9D6FF4]"
                   }
                 />
                 <span>
@@ -532,7 +587,14 @@ function VoiceContent() {
             </div>
 
             {/* Live Subtitle / Dialogue Display */}
-            <div className="w-full p-4 rounded-2xl bg-[#0D0D0D]/85 backdrop-blur-xl border border-[#A58CF4]/20 shadow-xl text-center min-h-[90px] flex flex-col items-center justify-center mb-4 transition-all">
+            <div
+              className="w-full p-4 rounded-2xl text-center min-h-[90px] flex flex-col items-center justify-center mb-4 transition-all"
+              style={{
+                background: "var(--surface-0)",
+                border: "1px solid var(--border-0)",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              }}
+            >
               {callStatus === "listening" && liveTranscript ? (
                 <div className="space-y-1">
                   <span className="text-[10px] uppercase tracking-wider text-rose-400 font-semibold flex items-center justify-center gap-1">
@@ -543,12 +605,12 @@ function VoiceContent() {
                   </p>
                 </div>
               ) : callStatus === "thinking" ? (
-                <div className="flex items-center gap-2 text-[12.5px] text-[#A58CF4] font-medium">
-                  <Loader2 size={16} className="animate-spin text-[#A58CF4]" />
+                <div className="flex items-center gap-2 text-[12.5px] font-medium" style={{ color: "var(--brand-glow)" }}>
+                  <Loader2 size={16} className="animate-spin" />
                   <span>Reflecting on memories with {activeAvatar?.name}...</span>
                 </div>
               ) : (
-                <p className="text-[13px] leading-relaxed text-[#FAFAFA] font-medium italic">
+                <p className="text-[13px] leading-relaxed font-medium italic" style={{ color: "var(--text-0)" }}>
                   &ldquo;{subtitle || `${activeAvatar?.name} is listening.`}&rdquo;
                 </p>
               )}
@@ -570,12 +632,17 @@ function VoiceContent() {
                 onChange={(e) => setTextInput(e.target.value)}
                 placeholder="Or type a thought to speak..."
                 disabled={callStatus === "thinking"}
-                className="flex-1 px-4 py-2.5 rounded-full bg-[#1A1A2E]/80 border border-[#A58CF4]/25 text-[12px] text-[#FAFAFA] placeholder:text-[rgba(250,250,250,0.4)] focus:outline-none focus:border-[#A58CF4] transition-all"
+                className="flex-1 px-4 py-2.5 rounded-full text-[12px] transition-all"
+                style={{
+                  background: "var(--surface-1)",
+                  border: "1px solid var(--border-1)",
+                  color: "var(--text-0)",
+                }}
               />
               <button
                 type="submit"
                 disabled={!textInput.trim() || callStatus === "thinking"}
-                className="p-2.5 rounded-full bg-[#433075] hover:bg-[#A58CF4]/80 disabled:opacity-40 text-[#FAFAFA] transition-all cursor-pointer shadow-md"
+                className="btn btn-primary btn-sm flex items-center justify-center p-2.5 rounded-full disabled:opacity-40 cursor-pointer"
                 title="Send"
               >
                 <Send size={13} />
@@ -587,16 +654,24 @@ function VoiceContent() {
 
       {/* Bottom Floating Control Dock */}
       <footer className="p-4 sm:p-6 flex justify-center z-20">
-        <div className="flex items-center gap-4 sm:gap-6 px-6 py-3 rounded-full bg-[#0D0D0D]/90 backdrop-blur-2xl border border-[#A58CF4]/30 shadow-[0_16px_50px_rgba(13,13,13,0.85)]">
+        <div
+          className="flex items-center gap-4 sm:gap-6 px-6 py-3 rounded-full shadow-2xl"
+          style={{
+            background: "var(--surface-0)",
+            border: "1px solid var(--border-1)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.7)",
+          }}
+        >
           {/* Mute Button */}
           <button
             type="button"
             onClick={toggleMute}
-            className={`p-3 rounded-full transition-all cursor-pointer border ${
-              isMuted
-                ? "bg-red-950/60 border-red-500/40 text-red-400"
-                : "bg-[#433075]/40 hover:bg-[#433075]/70 border-[#A58CF4]/25 text-[#FAFAFA]"
-            }`}
+            className="p-3 rounded-full transition-all cursor-pointer"
+            style={{
+              background: isMuted ? "rgba(248, 113, 113, 0.15)" : "var(--surface-1)",
+              border: isMuted ? "1px solid rgba(248, 113, 113, 0.4)" : "1px solid var(--border-0)",
+              color: isMuted ? "var(--danger)" : "var(--text-0)",
+            }}
             title={isMuted ? "Unmute" : "Mute"}
           >
             {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
@@ -609,8 +684,15 @@ function VoiceContent() {
             className={`p-4 rounded-full transition-all cursor-pointer flex items-center justify-center shadow-xl ${
               callStatus === "listening"
                 ? "bg-rose-600 border-2 border-rose-300 text-white animate-pulse scale-110 shadow-rose-600/50"
-                : "bg-gradient-to-r from-[#433075] to-[#A58CF4] text-white hover:scale-105 shadow-[#A58CF4]/30 border border-white/20"
+                : "text-white hover:scale-105"
             }`}
+            style={{
+              background:
+                callStatus === "listening"
+                  ? undefined
+                  : "linear-gradient(135deg, #7C4FF0, #9D6FF4)",
+              boxShadow: "0 0 24px rgba(124, 79, 240, 0.5)",
+            }}
             title={callStatus === "listening" ? "Listening... Click to send" : "Click to Talk"}
           >
             {callStatus === "listening" ? <Square size={22} fill="white" /> : <Mic size={24} />}
@@ -621,10 +703,15 @@ function VoiceContent() {
             <button
               type="button"
               onClick={handleInterrupt}
-              className="p-3 rounded-full bg-[#433075]/50 hover:bg-[#433075] border border-[#A58CF4]/30 text-[#FAFAFA] transition-all cursor-pointer hover:scale-105"
+              className="p-3 rounded-full transition-all cursor-pointer hover:scale-105"
+              style={{
+                background: "rgba(124, 79, 240, 0.2)",
+                border: "1px solid rgba(124, 79, 240, 0.4)",
+                color: "var(--brand-glow)",
+              }}
               title="Interrupt and speak"
             >
-              <Radio size={18} className="text-[#A58CF4] animate-pulse" />
+              <Radio size={18} className="animate-pulse" />
             </button>
           )}
 
@@ -632,7 +719,7 @@ function VoiceContent() {
           <button
             type="button"
             onClick={handleEndCall}
-            className="p-3 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white transition-all cursor-pointer border border-rose-400/30 shadow-lg hover:scale-105"
+            className="p-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white transition-all cursor-pointer shadow-lg hover:scale-105"
             title="End Voice Call"
           >
             <PhoneOff size={18} />
@@ -647,8 +734,11 @@ export default function VoicePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center text-[#FAFAFA]">
-          <Loader2 size={36} className="text-[#A58CF4] animate-spin" />
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: "var(--void)", color: "var(--text-0)" }}
+        >
+          <Loader2 size={36} className="animate-spin" style={{ color: "var(--brand-glow)" }} />
         </div>
       }
     >

@@ -2,7 +2,7 @@ import "./globals.css";
 import { Providers } from "../components/providers/Providers";
 
 export const metadata = {
-  title: "Eternia — Preserve the Ones You Love",
+  title: "Eternia — Where Memories Live Forever",
   description:
     "Create a conversational AI companion that looks, sounds, and remembers like your loved one. Built with empathy, privacy, and care.",
   keywords: [
@@ -28,7 +28,7 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap"
           rel="stylesheet"
         />
       </head>

@@ -529,44 +529,82 @@ function ChatContent() {
 
 
   return (
-    <div className="h-screen h-[100dvh] w-full overflow-hidden bg-[#0D0D0D] flex flex-col md:flex-row p-2 sm:p-3 md:p-3.5 gap-2.5 sm:gap-3 relative">
-      {/* Ambient background glow (strictly in palette #433075 and #0D0D0D) */}
+    <div
+      className="h-screen h-[100dvh] w-full overflow-hidden flex flex-col md:flex-row p-2 sm:p-3 md:p-3.5 gap-2.5 sm:gap-3 relative"
+      style={{ background: "var(--void)" }}
+    >
+      {/* Aurora ambient glow */}
       <div
-        className="absolute inset-0 pointer-events-none z-0"
         style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
           backgroundImage:
-            "radial-gradient(120% 80% at 50% 0%, rgba(67, 48, 117, 0.45) 0%, rgba(13, 13, 13, 0.95) 55%, #0D0D0D 100%)",
+            "radial-gradient(120% 80% at 50% 0%, rgba(255, 209, 102, 0.12) 0%, rgba(33, 11, 44, 0.94) 55%, var(--void) 100%)",
         }}
       />
 
       {/* Left-docked Vertical Glass Navbar for Chat mode */}
       <Navbar mode="vertical" />
 
-      {/* Main Chat Viewport - Pinned ChatGPT/Claude Style Layout */}
+      {/* Main Chat Viewport */}
       <main className="flex-1 min-w-0 h-full flex flex-col z-10 overflow-hidden">
-        <div className="w-full flex-1 min-h-0 rounded-[24px] sm:rounded-[28px] bg-[#0D0D0D] border border-[#A58CF4]/25 shadow-[0_16px_50px_rgba(13,13,13,0.7)] flex flex-col md:flex-row overflow-hidden">
+        <div
+          className="w-full flex-1 min-h-0 rounded-[24px] sm:rounded-[28px] flex flex-col md:flex-row overflow-hidden"
+          style={{
+            background: "var(--surface-0)",
+            border: "1px solid var(--border-0)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.65)",
+          }}
+        >
 
           {/* Sidebar: Companions List */}
-          <aside className="w-full md:w-[280px] bg-[#433075]/15 border-r border-[#A58CF4]/20 flex flex-col p-4 shrink-0 h-full overflow-hidden">
-            <div className="flex items-center justify-between pb-3 mb-2 border-b border-[#A58CF4]/15 shrink-0">
-              <span className="text-[12px] font-medium text-[#FAFAFA]">
+          <aside
+            className="w-full md:w-[280px] flex flex-col p-4 shrink-0 h-full overflow-hidden"
+            style={{
+              background: "var(--surface-0)",
+              borderRight: "1px solid var(--border-0)",
+            }}
+          >
+            <div
+              className="flex items-center justify-between pb-3 mb-2 shrink-0"
+              style={{ borderBottom: "1px solid var(--border-0)" }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-0)" }}>
                 Active Companions
               </span>
               <Link
                 href="/onboarding"
-                className="text-[11px] font-medium text-[#A58CF4] hover:text-[#FAFAFA] flex items-center gap-1 no-underline transition-colors"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--lavender)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  textDecoration: "none",
+                  transition: "color 150ms",
+                }}
+                className="hover:text-[#EEF0F6]"
               >
                 <Plus size={13} /> New
               </Link>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 py-1 no-scrollbar">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 py-1 no-scrollbar">
               {loadingAvatars ? (
-                <p className="text-[12px] text-[rgba(250,250,250,0.7)] p-2">Loading companions...</p>
+                <div style={{ padding: "12px 8px" }}>
+                  {[1,2,3].map(i => (
+                    <div key={i} className="skeleton" style={{ height: 52, borderRadius: 12, marginBottom: 6 }} />
+                  ))}
+                </div>
               ) : avatars.length === 0 ? (
-                <div className="text-center p-6 text-[rgba(250,250,250,0.7)]">
-                  <p className="text-[12px] mb-3">No companion created yet.</p>
-                  <Link href="/onboarding" className="btn-pill-primary text-[11px] px-3 py-1.5 no-underline">
+                <div style={{ textAlign: "center", padding: "24px 16px" }}>
+                  <p style={{ fontSize: 12.5, color: "var(--text-1)", marginBottom: 12 }}>
+                    When you\'re ready, create your first companion.
+                  </p>
+                  <Link href="/onboarding" className="btn btn-primary btn-sm" style={{ textDecoration: "none", display: "inline-flex" }}>
                     Create First
                   </Link>
                 </div>
@@ -575,33 +613,70 @@ function ChatContent() {
                   <div
                     key={av.id}
                     onClick={() => setActiveAvatar(av)}
-                    className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all group relative ${activeAvatar?.id === av.id
-                        ? "bg-[#433075] text-[#FAFAFA] shadow-xs border border-[#A58CF4]/35"
-                        : "hover:bg-[#433075]/20 text-[rgba(250,250,250,0.7)] border border-transparent"
-                      }`}
+                    className="group relative"
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      cursor: "pointer",
+                      transition: "all 150ms",
+                      background: activeAvatar?.id === av.id
+                        ? "rgba(255, 209, 102, 0.14)"
+                        : "transparent",
+                      border: activeAvatar?.id === av.id
+                        ? "1px solid rgba(255, 209, 102, 0.45)"
+                        : "1px solid transparent",
+                      boxShadow: activeAvatar?.id === av.id
+                        ? "inset 3px 0 0 #FFD166, 0 0 16px rgba(255, 209, 102, 0.15)"
+                        : "none",
+                    }}
+                    className={`group relative cursor-pointer ${
+                      activeAvatar?.id !== av.id ? "hover:bg-white/[0.04]" : ""
+                    }`}
                   >
-                    <div className="w-9 h-9 rounded-full bg-[#433075] border border-[#A58CF4]/30 text-[#FAFAFA] flex items-center justify-center font-medium text-[13px] shrink-0">
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "50%",
+                        background: "linear-gradient(135deg, #210B2C, #3B184C, #BC96E6)",
+                        border: "1px solid rgba(255, 209, 102, 0.45)",
+                        color: "#FFD166",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        flexShrink: 0,
+                        boxShadow: "0 0 12px rgba(255, 209, 102, 0.25)",
+                      }}
+                    >
                       {av.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-[13px] font-medium truncate text-[#FAFAFA]">
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 500, color: "var(--text-0)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {av.name}
                       </h4>
-                      <p className="text-[11px] text-[rgba(250,250,250,0.6)] truncate">
+                      <p style={{ fontSize: 11, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {av.relationship} · {av.memory_count || 0} memories
                       </p>
                     </div>
-
-                    {/* Delete Companion Button */}
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAvatarToDelete(av);
-                        setShowDeleteAvatarModal(true);
+                      onClick={(e) => { e.stopPropagation(); setAvatarToDelete(av); setShowDeleteAvatarModal(true); }}
+                      style={{
+                        opacity: 0,
+                        padding: 6,
+                        borderRadius: 8,
+                        color: "var(--text-2)",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        transition: "all 150ms",
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-[rgba(250,250,250,0.45)] hover:text-red-400 hover:bg-[#0D0D0D]/60 transition-all cursor-pointer"
-                      title={`Remove ${av.name}'s archive`}
+                      className="group-hover:opacity-100 hover:text-red-400"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -610,39 +685,65 @@ function ChatContent() {
               )}
             </div>
 
-            {/* Sidebar bottom indicator */}
-            <div className="pt-3 border-t border-[#A58CF4]/15 flex items-center justify-between text-[11px] text-[rgba(250,250,250,0.7)] shrink-0">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#A58CF4] shadow-[0_0_8px_#A58CF4] inline-block"></span>
-                Grounded Chat • Uncapped
+            {/* Sidebar bottom */}
+            <div
+              className="pt-3 flex items-center justify-between shrink-0"
+              style={{ borderTop: "1px solid var(--border-0)", fontSize: 11, color: "var(--text-2)" }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span className="glow-dot" />
+                Grounded · Uncapped
               </span>
-              <Link href="/settings" className="hover:text-[#A58CF4] no-underline text-[rgba(250,250,250,0.7)] transition-colors">
+              <Link href="/settings" style={{ color: "var(--text-2)", textDecoration: "none", transition: "color 150ms" }} className="hover:text-[#EEF0F6]">
                 <SettingsIcon size={14} />
               </Link>
             </div>
           </aside>
 
-          {/* Main Chat Thread & Stationary Input (ChatGPT / Claude Style) */}
-          <section className="flex-1 min-h-0 flex flex-col h-full bg-[#0D0D0D] overflow-hidden">
-
-            {/* Chat Thread Header */}
+          {/* Main Chat Thread */}
+          <section
+            className="flex-1 min-h-0 flex flex-col h-full overflow-hidden"
+            style={{ background: "var(--void)" }}
+          >
+            {/* Chat Header */}
             {activeAvatar ? (
-              <div className="px-4 sm:px-6 py-3 bg-[#433075]/20 border-b border-[#A58CF4]/20 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#433075] border border-[#A58CF4]/30 text-[#FAFAFA] flex items-center justify-center font-medium text-[12px]">
+              <div
+                className="px-4 sm:px-5 py-3 flex items-center justify-between shrink-0"
+                style={{
+                  background: "var(--surface-0)",
+                  borderBottom: "1px solid var(--border-0)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, #210B2C, #3B184C, #BC96E6)",
+                      border: "1px solid rgba(255, 209, 102, 0.5)",
+                      color: "#FFD166",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      boxShadow: "0 0 12px rgba(255, 209, 102, 0.35)",
+                    }}
+                  >
                     {activeAvatar.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="text-[14px] font-medium text-[#FAFAFA]">
+                    <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--text-0)", fontFamily: "Outfit, sans-serif" }}>
                       {activeAvatar.name}
                     </h3>
-                    <p className="text-[11px] text-[rgba(250,250,250,0.65)] flex items-center gap-1.5 flex-wrap">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#A58CF4] inline-block"></span>
+                    <p style={{ fontSize: 11, color: "var(--text-2)", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="glow-dot" style={{ width: 6, height: 6 }} />
                       <span>{activeAvatar.relationship} · {activeAvatar.memory_count || 0} stories</span>
                       {voiceInfo && (
                         <>
-                          <span className="text-[rgba(250,250,250,0.3)]">·</span>
-                          <span className="text-[#A58CF4] flex items-center gap-1 font-medium">
+                          <span style={{ color: "var(--text-2)" }}>·</span>
+                          <span style={{ color: "var(--lavender)", display: "flex", alignItems: "center", gap: 4, fontWeight: 500 }}>
                             <Volume2 size={11} /> {voiceInfo.voice_name} Voice
                           </span>
                         </>
@@ -650,38 +751,49 @@ function ChatContent() {
                     </p>
                   </div>
                 </div>
-
-                {/* Header Actions: Stories Archive, Add Memory, Delete Companion */}
-                <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Header Actions */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button
                     onClick={() => openStoriesModal()}
-                    className="btn-pill-ghost text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1 cursor-pointer"
-                    title="View, search and manage preserved memories"
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 11, padding: "5px 10px" }}
                   >
-                    <BookOpen size={12} className="text-[#A58CF4]" /> Stories ({activeAvatar.memory_count || 0})
+                    <BookOpen size={12} style={{ color: "var(--lavender)" }} /> Stories ({activeAvatar.memory_count || 0})
                   </button>
                   <button
                     onClick={() => setShowMemoryModal(true)}
-                    className="btn-pill-ghost text-[11px] px-2.5 sm:px-3 py-1 flex items-center gap-1 cursor-pointer"
-                    title="Add a new story or memory"
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 11, padding: "5px 10px" }}
                   >
                     <Plus size={13} /> Add
                   </button>
                   <button
-                    type="button"
-                    onClick={() => {
-                      setAvatarToDelete(activeAvatar);
-                      setShowDeleteAvatarModal(true);
+                    onClick={() => { setAvatarToDelete(activeAvatar); setShowDeleteAvatarModal(true); }}
+                    style={{
+                      padding: 6,
+                      borderRadius: 8,
+                      color: "var(--text-2)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "all 150ms",
                     }}
-                    className="p-1.5 rounded-full text-[rgba(250,250,250,0.5)] hover:text-red-400 hover:bg-red-950/30 border border-transparent hover:border-red-500/20 transition-all cursor-pointer"
-                    title={`Delete ${activeAvatar.name}'s companion archive`}
+                    className="hover:text-red-400"
                   >
                     <Trash2 size={13} />
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="px-6 py-4 bg-[#433075]/20 border-b border-[#A58CF4]/20 text-[13px] text-[rgba(250,250,250,0.7)] shrink-0">
+              <div
+                style={{
+                  padding: "16px 24px",
+                  borderBottom: "1px solid var(--border-0)",
+                  fontSize: 13,
+                  color: "var(--text-1)",
+                  background: "var(--surface-0)",
+                }}
+              >
                 Select or create a companion to begin conversation.
               </div>
             )}
@@ -708,7 +820,7 @@ function ChatContent() {
                   </div>
 
                   <div className="flex items-center gap-2 sm:gap-3 mt-1.5 px-1 flex-wrap">
-                    <span className="text-[10.5px] text-[rgba(250,250,250,0.55)]">
+                    <span className="text-[10.5px]" style={{ color: "var(--text-2)" }}>
                       {formatTime(m.timestamp)}
                     </span>
                     {m.role === "assistant" && (
@@ -717,35 +829,41 @@ function ChatContent() {
                           type="button"
                           onClick={() => handleSpeakMessage(m.id, m.content)}
                           disabled={isVoiceLoading && isVoiceLoading !== m.id}
-                          className="text-[10.5px] text-[rgba(250,250,250,0.65)] hover:text-[#A58CF4] flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded-md hover:bg-[#433075]/30 cursor-pointer disabled:opacity-50"
+                          className="text-[10.5px] flex items-center gap-1 transition-all px-2 py-0.5 rounded-lg cursor-pointer disabled:opacity-50"
+                          style={{
+                            color: "var(--sunglow)",
+                            background: "rgba(255, 209, 102, 0.12)",
+                            border: "1px solid rgba(255, 209, 102, 0.35)",
+                          }}
                           title={`Hear companion voice (${voiceInfo ? voiceInfo.voice_name : "ElevenLabs"})`}
                         >
                           {isVoiceLoading === m.id ? (
                             <>
-                              <Loader2 size={12} className="text-[#A58CF4] animate-spin" />
-                              <span className="text-[#A58CF4]">Speaking...</span>
+                              <Loader2 size={12} className="animate-spin" style={{ color: "var(--sunglow)" }} />
+                              <span style={{ color: "var(--sunglow)" }}>Speaking...</span>
                             </>
                           ) : playingMessageId === m.id ? (
                             <>
-                              <VolumeX size={12} className="text-[#A58CF4] animate-pulse" />
-                              <span className="text-[#A58CF4]">Pause</span>
+                              <VolumeX size={12} className="animate-pulse" style={{ color: "var(--sunglow)" }} />
+                              <span style={{ color: "var(--sunglow)" }}>Pause</span>
                             </>
                           ) : (
                             <>
-                              <Volume2 size={12} className="text-[#A58CF4]" />
+                              <Volume2 size={12} style={{ color: "var(--sunglow)" }} />
                               <span>Hear Voice {voiceInfo ? `(${voiceInfo.voice_name})` : ""}</span>
                             </>
                           )}
                         </button>
 
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${m.grounded
-                              ? "bg-[#433075] text-[#FAFAFA] border border-[#A58CF4]/40"
-                              : "bg-[#433075]/40 text-[#A58CF4] border border-[#A58CF4]/25"
-                            }`}
-                        >
-                          {m.grounded ? "✓ Grounded in Memory" : "✦ Gentle Reflection"}
-                        </span>
+                      <span
+                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium ${
+                          m.grounded
+                            ? "grounding-badge-grounded"
+                            : "grounding-badge-gentle"
+                        }`}
+                      >
+                        {m.grounded ? "✓ Grounded in Memory" : "✦ Gentle Reflection"}
+                      </span>
                       </>
                     )}
                   </div>
@@ -753,11 +871,11 @@ function ChatContent() {
               ))}
 
               {isTyping && (
-                <div className="flex items-start">
-                  <div className="chat-message-assistant py-3 px-4 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#A58CF4] animate-bounce"></span>
-                    <span className="w-2 h-2 rounded-full bg-[#A58CF4] animate-bounce [animation-delay:0.2s]"></span>
-                    <span className="w-2 h-2 rounded-full bg-[#A58CF4] animate-bounce [animation-delay:0.4s]"></span>
+                <div style={{ display: "flex", alignItems: "flex-start" }}>
+                  <div className="chat-message-assistant" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
                   </div>
                 </div>
               )}
@@ -765,27 +883,36 @@ function ChatContent() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Pinned Stationary Chat Input Bar (ChatGPT / Claude style) */}
-            <div className="p-3 sm:p-4 bg-[#433075]/15 border-t border-[#A58CF4]/20 shrink-0">
+            {/* Input Area */}
+            <div
+              className="p-3 sm:p-4 shrink-0"
+              style={{
+                background: "var(--surface-0)",
+                borderTop: "1px solid var(--border-0)",
+              }}
+            >
               <div className="chat-input-pill max-w-4xl mx-auto">
                 {/* File Upload Button */}
                 <button
                   type="button"
                   onClick={() => setShowMemoryModal(true)}
-                  className="text-[rgba(250,250,250,0.7)] hover:text-[#A58CF4] transition-colors p-1"
+                  className="p-1 transition-colors cursor-pointer"
+                  style={{ color: "var(--text-1)" }}
                   title="Upload memories or documents"
                 >
                   <Upload size={17} />
                 </button>
 
-                {/* Microphone Speech-to-Text Button (Click to Talk -> Click to Stop & Send) */}
+                {/* Microphone Speech-to-Text Button */}
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  className={`transition-all p-1.5 rounded-full cursor-pointer flex items-center justify-center ${isRecording
-                      ? "bg-red-600 text-[#FAFAFA] shadow-[0_0_14px_rgba(220,38,38,0.8)] animate-pulse"
-                      : "text-[rgba(250,250,250,0.7)] hover:text-[#A58CF4]"
-                    }`}
+                  className={`transition-all p-1.5 rounded-full cursor-pointer flex items-center justify-center ${
+                    isRecording
+                      ? "bg-red-600 text-white shadow-[0_0_16px_rgba(239,68,68,0.8)] animate-pulse"
+                      : "hover:text-[#EEF0F6]"
+                  }`}
+                  style={{ color: isRecording ? "#fff" : "var(--text-1)" }}
                   title={isRecording ? "Click to stop talking & send" : "Click to talk (Microphone)"}
                 >
                   {isRecording ? <Square size={14} fill="currentColor" /> : <Mic size={16} />}
@@ -809,9 +936,10 @@ function ChatContent() {
                   type="button"
                   onClick={() => handleSend()}
                   disabled={!input.trim() || isTyping || !activeAvatar}
-                  className="btn-pill-primary text-[12px] px-4 py-2 disabled:opacity-40 cursor-pointer"
+                  className="btn btn-primary btn-sm disabled:opacity-40"
+                  style={{ padding: "8px 18px", fontSize: 12 }}
                 >
-                  <Send size={13} className="mr-1" /> Send
+                  <Send size={13} /> Send
                 </button>
               </div>
             </div>
@@ -823,74 +951,112 @@ function ChatContent() {
       {/* Add Memory Modal */}
       {showMemoryModal && (
         <div className="modal-backdrop">
-          <div className="modal-card">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#A58CF4]/20">
-              <div className="flex items-center gap-2">
-                <BookOpen size={18} className="text-[#A58CF4]" />
-                <h3 className="font-medium text-[16px] text-[#FAFAFA]">
+          <div
+            className="w-full max-w-[540px] rounded-[28px] p-6 sm:p-7 relative text-left"
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border-1)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.85)",
+            }}
+          >
+            <div
+              className="flex items-center justify-between pb-3 mb-4 shrink-0"
+              style={{ borderBottom: "1px solid var(--border-0)" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style={{ background: "rgba(124,79,240,0.15)", color: "var(--brand-glow)" }}
+                >
+                  <BookOpen size={16} />
+                </div>
+                <h3 className="font-medium text-[16px]" style={{ color: "var(--text-0)" }}>
                   Preserve a Memory for {activeAvatar?.name}
                 </h3>
               </div>
               <button
                 onClick={() => setShowMemoryModal(false)}
-                className="text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA] text-[18px] transition-colors cursor-pointer"
+                className="transition-colors cursor-pointer text-[18px]"
+                style={{ color: "var(--text-2)" }}
               >
                 ✕
               </button>
             </div>
 
             {memorySuccessMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-[#433075]/40 border border-[#A58CF4] text-[#FAFAFA] text-[12px] flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-[#A58CF4]" />
+              <div
+                className="mb-4 p-3 rounded-xl text-[12px] flex items-center gap-2"
+                style={{
+                  background: "rgba(52, 211, 153, 0.12)",
+                  border: "1px solid rgba(52, 211, 153, 0.3)",
+                  color: "var(--text-0)",
+                }}
+              >
+                <CheckCircle2 size={16} style={{ color: "var(--success)" }} />
                 <span>{memorySuccessMsg}</span>
               </div>
             )}
 
             {memoryErrorMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-[#433075]/20 border border-red-500/60 text-[#FAFAFA] text-[12px] flex items-center gap-2">
-                <AlertCircle size={16} className="text-red-400 shrink-0" />
+              <div
+                className="mb-4 p-3 rounded-xl text-[12px] flex items-center gap-2"
+                style={{
+                  background: "rgba(248, 113, 113, 0.12)",
+                  border: "1px solid rgba(248, 113, 113, 0.3)",
+                  color: "var(--text-0)",
+                }}
+              >
+                <AlertCircle size={16} style={{ color: "var(--danger)" }} className="shrink-0" />
                 <span>{memoryErrorMsg}</span>
               </div>
             )}
 
             <form onSubmit={handleAddMemory} className="space-y-4">
               <div>
-                <label className="text-[11px] font-medium text-[#A58CF4] block mb-1">
-                  Story, Favorite Saying, or Shared Memory:
+                <label className="text-[11.5px] font-medium block mb-1.5" style={{ color: "var(--lavender)" }}>
+                  Story, Favorite Saying, or Shared Tradition:
                 </label>
                 <textarea
                   rows={4}
                   value={newMemoryText}
                   onChange={(e) => setNewMemoryText(e.target.value)}
-                  placeholder="e.g., Whenever it rained, Dadi would always bake warm besan laddoos and tell us stories about her childhood in Shimla..."
-                  className="w-full p-3 text-[13px] border border-[#A58CF4]/25 rounded-xl focus:outline-none focus:border-[#A58CF4] bg-[#0D0D0D] text-[#FAFAFA]"
+                  placeholder="e.g., Whenever it rained, she would make warm tea and tell us childhood stories..."
+                  className="w-full p-3.5 text-[13px] rounded-xl focus:outline-none transition-all"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-1)",
+                    color: "var(--text-0)",
+                  }}
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-medium text-[#A58CF4] block mb-1">
+                <label className="text-[11.5px] font-medium block mb-1.5" style={{ color: "var(--lavender)" }}>
                   Attach Chat Export or Document (.txt, .pdf, .docx):
                 </label>
                 <input
                   type="file"
                   accept=".txt,.pdf,.docx"
                   onChange={(e) => setUploadFile(e.target.files[0] || null)}
-                  className="text-[12px] text-[rgba(250,250,250,0.8)] file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[11px] file:bg-[#433075] file:text-[#FAFAFA] hover:file:bg-[#A58CF4] hover:file:text-[#0D0D0D]"
+                  className="text-[12px] file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[11px] cursor-pointer"
+                  style={{
+                    color: "var(--text-1)",
+                  }}
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowMemoryModal(false)}
-                  className="btn-pill-ghost text-[11px]"
+                  className="btn btn-ghost btn-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingMemory || (!newMemoryText.trim() && !uploadFile)}
-                  className="btn-pill-primary text-[11px] px-4 py-2 disabled:opacity-40 cursor-pointer"
+                  className="btn btn-primary btn-sm disabled:opacity-40 cursor-pointer"
                 >
                   {isSavingMemory ? "Preserving..." : "Save Memory"}
                 </button>
@@ -900,14 +1066,24 @@ function ChatContent() {
         </div>
       )}
 
-      {/* Delete Companion Confirmation Modal (Kabir, Anurag, etc.) */}
+      {/* Delete Companion Confirmation Modal */}
       {showDeleteAvatarModal && avatarToDelete && (
         <div className="modal-backdrop">
-          <div className="w-full max-w-[460px] rounded-[28px] bg-[#0D0D0D] p-6 sm:p-7 border border-[#A58CF4]/30 shadow-[0_24px_80px_rgba(13,13,13,0.95)] flex flex-col relative text-left">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#A58CF4]/20">
-              <div className="flex items-center gap-2.5 text-red-400">
+          <div
+            className="w-full max-w-[460px] rounded-[28px] p-6 sm:p-7 flex flex-col relative text-left"
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border-1)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.85)",
+            }}
+          >
+            <div
+              className="flex items-center justify-between pb-3 mb-4"
+              style={{ borderBottom: "1px solid var(--border-0)" }}
+            >
+              <div className="flex items-center gap-2.5" style={{ color: "var(--danger)" }}>
                 <AlertCircle size={20} />
-                <h3 className="font-medium text-[16px] text-[#FAFAFA]">
+                <h3 className="font-medium text-[16px]" style={{ color: "var(--text-0)" }}>
                   Remove Companion Archive
                 </h3>
               </div>
@@ -916,17 +1092,25 @@ function ChatContent() {
                   setShowDeleteAvatarModal(false);
                   setAvatarToDelete(null);
                 }}
-                className="text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA] text-[18px] cursor-pointer"
+                className="text-[18px] cursor-pointer"
+                style={{ color: "var(--text-2)" }}
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-3 mb-6">
-              <p className="text-[13px] text-[#FAFAFA] leading-relaxed">
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-0)" }}>
                 Are you sure you want to remove <strong>{avatarToDelete.name}</strong> ({avatarToDelete.relationship})?
               </p>
-              <div className="p-3.5 rounded-xl bg-red-950/20 border border-red-500/30 text-[12px] text-[rgba(250,250,250,0.75)] space-y-1.5">
+              <div
+                className="p-3.5 rounded-xl text-[12px] space-y-1.5"
+                style={{
+                  background: "rgba(248, 113, 113, 0.08)",
+                  border: "1px solid rgba(248, 113, 113, 0.25)",
+                  color: "var(--text-1)",
+                }}
+              >
                 <p>• All <strong>{avatarToDelete.memory_count || 0}</strong> preserved memories and stories will be deleted.</p>
                 <p>• Vector search points and neural voice persona will be purged.</p>
                 <p>• Conversation history will be permanently erased.</p>
@@ -941,7 +1125,7 @@ function ChatContent() {
                   setAvatarToDelete(null);
                 }}
                 disabled={isDeletingAvatar}
-                className="btn-pill-ghost text-[12px] px-4 py-2"
+                className="btn btn-ghost btn-sm"
               >
                 Cancel
               </button>
@@ -949,7 +1133,7 @@ function ChatContent() {
                 type="button"
                 onClick={handleConfirmDeleteAvatar}
                 disabled={isDeletingAvatar}
-                className="px-5 py-2 rounded-full bg-red-600 hover:bg-red-700 text-[#FAFAFA] text-[12px] font-medium flex items-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50 transition-all"
+                className="btn btn-danger btn-sm"
               >
                 {isDeletingAvatar ? (
                   <>
@@ -969,17 +1153,31 @@ function ChatContent() {
       {/* View & Manage Stories / Memories Modal */}
       {showStoriesModal && activeAvatar && (
         <div className="modal-backdrop">
-          <div className="w-full max-w-[640px] max-h-[85vh] rounded-[28px] bg-[#0D0D0D] p-6 sm:p-7 border border-[#A58CF4]/30 shadow-[0_24px_80px_rgba(13,13,13,0.95)] flex flex-col relative text-left">
-
+          <div
+            className="w-full max-w-[640px] max-h-[85vh] rounded-[28px] p-6 sm:p-7 flex flex-col relative text-left"
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border-1)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.85)",
+            }}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#A58CF4]/20 shrink-0">
-              <div className="flex items-center gap-2">
-                <BookOpen size={18} className="text-[#A58CF4]" />
+            <div
+              className="flex items-center justify-between pb-3 mb-3 shrink-0"
+              style={{ borderBottom: "1px solid var(--border-0)" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center"
+                  style={{ background: "rgba(255, 209, 102, 0.16)", border: "1px solid rgba(255, 209, 102, 0.4)", color: "var(--sunglow)" }}
+                >
+                  <BookOpen size={16} />
+                </div>
                 <div>
-                  <h3 className="font-medium text-[16px] text-[#FAFAFA]">
-                    {activeAvatar.name}'s Preserved Stories
+                  <h3 className="font-medium text-[16px]" style={{ color: "var(--text-0)" }}>
+                    {activeAvatar.name}&apos;s Preserved Stories
                   </h3>
-                  <p className="text-[11px] text-[rgba(250,250,250,0.6)]">
+                  <p className="text-[11px]" style={{ color: "var(--text-2)" }}>
                     {avatarMemories.length} stories grounded in vector vault
                   </p>
                 </div>
@@ -990,13 +1188,15 @@ function ChatContent() {
                     setShowStoriesModal(false);
                     setShowMemoryModal(true);
                   }}
-                  className="btn-pill-primary text-[11px] px-3 py-1 flex items-center gap-1 cursor-pointer"
+                  className="btn btn-primary btn-sm"
+                  style={{ padding: "6px 12px", fontSize: 11 }}
                 >
                   <Plus size={12} /> Add Story
                 </button>
                 <button
                   onClick={() => setShowStoriesModal(false)}
-                  className="text-[rgba(250,250,250,0.6)] hover:text-[#FAFAFA] text-[18px] cursor-pointer"
+                  className="text-[18px] cursor-pointer"
+                  style={{ color: "var(--text-2)" }}
                 >
                   ✕
                 </button>
@@ -1004,8 +1204,15 @@ function ChatContent() {
             </div>
 
             {storiesToastMsg && (
-              <div className="mb-3 p-2.5 rounded-xl bg-[#433075]/40 border border-[#A58CF4] text-[#FAFAFA] text-[12px] flex items-center gap-2 shrink-0">
-                <CheckCircle2 size={15} className="text-[#A58CF4]" />
+              <div
+                className="mb-3 p-2.5 rounded-xl text-[12px] flex items-center gap-2 shrink-0"
+                style={{
+                  background: "rgba(52, 211, 153, 0.12)",
+                  border: "1px solid rgba(52, 211, 153, 0.3)",
+                  color: "var(--text-0)",
+                }}
+              >
+                <CheckCircle2 size={15} style={{ color: "var(--success)" }} />
                 <span>{storiesToastMsg}</span>
               </div>
             )}
@@ -1013,19 +1220,19 @@ function ChatContent() {
             {/* Stories List */}
             <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 py-1 no-scrollbar">
               {loadingMemories ? (
-                <div className="py-12 text-center text-[13px] text-[rgba(250,250,250,0.7)] flex flex-col items-center gap-2">
-                  <Loader2 size={18} className="animate-spin text-[#A58CF4]" />
+                <div className="py-12 text-center text-[13px] flex flex-col items-center gap-2" style={{ color: "var(--text-1)" }}>
+                  <Loader2 size={18} className="animate-spin" style={{ color: "var(--brand-glow)" }} />
                   <span>Loading preserved stories from memory vault...</span>
                 </div>
               ) : avatarMemories.length === 0 ? (
-                <div className="py-12 text-center text-[rgba(250,250,250,0.65)] space-y-3">
+                <div className="py-12 text-center space-y-3" style={{ color: "var(--text-1)" }}>
                   <p className="text-[13px]">No stories preserved in this archive yet.</p>
                   <button
                     onClick={() => {
                       setShowStoriesModal(false);
                       setShowMemoryModal(true);
                     }}
-                    className="btn-pill-primary text-[11px] px-4 py-2"
+                    className="btn btn-primary btn-sm"
                   >
                     Add First Memory
                   </button>
@@ -1034,29 +1241,44 @@ function ChatContent() {
                 avatarMemories.map((mem) => (
                   <div
                     key={mem.id}
-                    className="p-3.5 rounded-2xl bg-[#433075]/15 border border-[#A58CF4]/20 hover:border-[#A58CF4]/35 transition-all flex flex-col gap-2 group"
+                    className="p-3.5 rounded-2xl transition-all flex flex-col gap-2 group"
+                    style={{
+                      background: "var(--surface-0)",
+                      border: "1px solid var(--border-0)",
+                    }}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <p className="text-[12.5px] text-[#FAFAFA] leading-relaxed whitespace-pre-wrap flex-1">
+                      <p className="text-[12.5px] leading-relaxed whitespace-pre-wrap flex-1" style={{ color: "var(--text-0)" }}>
                         {mem.content}
                       </p>
                       <button
                         type="button"
                         onClick={() => handleDeleteMemory(mem.id)}
                         disabled={deletingMemoryId === mem.id}
-                        className="p-1.5 rounded-lg text-[rgba(250,250,250,0.4)] hover:text-red-400 hover:bg-red-950/30 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                        className="p-1.5 rounded-lg transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                        style={{ color: "var(--text-2)" }}
                         title="Remove this memory"
                       >
                         {deletingMemoryId === mem.id ? (
                           <Loader2 size={13} className="animate-spin text-red-400" />
                         ) : (
-                          <Trash2 size={13} />
+                          <Trash2 size={13} className="hover:text-red-400" />
                         )}
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1 border-t border-[#A58CF4]/10 text-[10.5px] text-[rgba(250,250,250,0.55)]">
-                      <span className="px-2 py-0.5 rounded-md bg-[#433075]/30 text-[#A58CF4] border border-[#A58CF4]/20 uppercase tracking-wider text-[9.5px]">
+                    <div
+                      className="flex items-center gap-2 pt-1 text-[10.5px]"
+                      style={{ borderTop: "1px solid var(--border-0)", color: "var(--text-2)" }}
+                    >
+                      <span
+                        className="px-2 py-0.5 rounded-md uppercase tracking-wider text-[9.5px]"
+                        style={{
+                          background: "rgba(124, 79, 240, 0.12)",
+                          color: "var(--lavender)",
+                          border: "1px solid rgba(124, 79, 240, 0.25)",
+                        }}
+                      >
                         {mem.source_type || "manual"}
                       </span>
                       {mem.memory_date && <span>• {new Date(mem.memory_date).toLocaleDateString()}</span>}
@@ -1072,11 +1294,14 @@ function ChatContent() {
             </div>
 
             {/* Footer */}
-            <div className="pt-3 border-t border-[#A58CF4]/15 flex items-center justify-between text-[11px] text-[rgba(250,250,250,0.6)] shrink-0 mt-2">
+            <div
+              className="pt-3 flex items-center justify-between text-[11px] shrink-0 mt-2"
+              style={{ borderTop: "1px solid var(--border-0)", color: "var(--text-2)" }}
+            >
               <span>Grounded in Qdrant Vector Vault</span>
               <button
                 onClick={() => setShowStoriesModal(false)}
-                className="btn-pill-ghost text-[11px] px-3 py-1"
+                className="btn btn-ghost btn-sm"
               >
                 Close
               </button>
