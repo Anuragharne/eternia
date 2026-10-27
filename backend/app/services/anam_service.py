@@ -113,9 +113,13 @@ class AnamService:
         if not anam_persona_id:
             raise RuntimeError(f"Could not resolve or create Anam persona for avatar {avatar_id}")
 
-        # Request session token from Anam
+        # Request modern stateful session token from Anam
         token_url = f"{self.api_url}/auth/session-token"
-        token_payload = {"personaId": anam_persona_id}
+        token_payload = {
+            "personaConfig": {
+                "personaId": anam_persona_id,
+            }
+        }
 
         res = requests.post(token_url, headers=headers, json=token_payload, timeout=15)
         if res.status_code not in (200, 201):

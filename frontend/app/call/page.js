@@ -161,6 +161,17 @@ function CallContent() {
     }
 
     try {
+      // 1. Ensure video element exists in DOM before starting stream
+      let videoEl = document.getElementById("anam-persona-video");
+      if (!videoEl) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        videoEl = document.getElementById("anam-persona-video");
+      }
+
+      if (!videoEl) {
+        throw new Error("anam-persona-video DOM element not found");
+      }
+
       const { createClient, AnamEvent } = await import("@anam-ai/js-sdk");
       const tokenRes = await api.getAnamSessionToken(activeAvatar.id);
 
@@ -168,23 +179,39 @@ function CallContent() {
         throw new Error("No session token received from Anam.ai");
       }
 
-      const client = createClient(tokenRes.sessionToken);
+      // Initialize client with modern session token and disableInputAudio for clean WebRTC
+      const client = createClient(tokenRes.sessionToken, {
+        disableInputAudio: true,
+      });
       anamClientRef.current = client;
 
-      client.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => {
-        console.log("[Anam] WebRTC connection established!");
+      const markStreamActive = () => {
+        console.log("[Anam] Live 25fps digital human video active!");
         setIsAnamConnected(true);
         setIsAnamConnecting(false);
         isConnectingRef.current = false;
         setCallStatus("Live 16:9 Digital Human Active");
+
+        const el = document.getElementById("anam-persona-video");
+        if (el && el.paused) {
+          el.play().catch((playErr) => {
+            console.warn("[Anam] Autoplay notice (click anywhere on call to play):", playErr);
+          });
+        }
+      };
+
+      client.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => {
+        console.log("[Anam] WebRTC connection established!");
+      });
+
+      client.addListener(AnamEvent.VIDEO_STREAM_STARTED, (stream) => {
+        console.log("[Anam] 25fps video stream track received:", stream);
+        markStreamActive();
       });
 
       client.addListener(AnamEvent.VIDEO_PLAY_STARTED, () => {
         console.log("[Anam] 25fps digital human video playing!");
-        setIsAnamConnected(true);
-        setIsAnamConnecting(false);
-        isConnectingRef.current = false;
-        setCallStatus("Live 16:9 Digital Human Active");
+        markStreamActive();
       });
 
       client.addListener(AnamEvent.CONNECTION_CLOSED, (code, details) => {
@@ -215,7 +242,7 @@ function CallContent() {
       if (!isCancelled && activeAvatar?.id) {
         initAnamSession();
       }
-    }, 250);
+    }, 200);
 
     return () => {
       isCancelled = true;
@@ -250,8 +277,17 @@ function CallContent() {
 
     try {
       if (anamClientRef.current && isAnamConnected) {
+        const videoEl = document.getElementById("anam-persona-video");
+        if (videoEl) {
+          videoEl.muted = isMuted;
+          if (videoEl.paused) {
+            videoEl.play().catch(() => {});
+          }
+        }
         // Anam.ai renders photorealistic 25fps facial animation & lip-sync over WebRTC
         await anamClientRef.current.talk(replyText);
+        const durationMs = Math.max(2500, Math.min(10000, replyText.length * 75));
+        setTimeout(() => setIsSpeaking(false), durationMs);
       } else {
         // Fallback: If WebRTC stream is offline/connecting, play MP3 via HTML5 audio
         const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, replyText);
@@ -271,39 +307,10 @@ function CallContent() {
             companionAudioRef.current.play().catch(() => resolve());
           });
         }
+        setIsSpeaking(false);
       }
     } catch (voiceErr) {
       console.warn("[Call] Speech playback notice:", voiceErr);
-      try {
-        const audioBlob = await api.getSpeechAudioBlob(activeAvatar.id, replyText);
-        const audioUrl = URL.createObjectURL(audioBlob);
-        if (companionAudioRef.current) {
-          companionAudioRef.current.src = audioUrl;
-          companionAudioRef.current.muted = isMuted;
-          await new Promise((resolve) => {
-            companionAudioRef.current.onended = () => {
-              URL.revokeObjectURL(audioUrl);
-              resolve();
-            };
-            companionAudioRef.current.onerror = () => {
-              URL.revokeObjectURL(audioUrl);
-              resolve();
-            };
-            companionAudioRef.current.play().catch(() => resolve());
-          });
-        }
-      } catch (mp3Err) {
-        if ("speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(replyText);
-          await new Promise((resolve) => {
-            utterance.onend = () => resolve();
-            utterance.onerror = () => resolve();
-            window.speechSynthesis.speak(utterance);
-          });
-        }
-      }
-    } finally {
       setIsSpeaking(false);
     }
   };
@@ -401,17 +408,31 @@ function CallContent() {
     }
   };
 
-  // 7. Automatic Interactive Greeting when Call Connects
+  // 7. Automatic Interactive Greeting when Digital Human connects
   useEffect(() => {
-    if (activeAvatar && !hasGreetedRef.current && !isLoading) {
+    if (activeAvatar && !hasGreetedRef.current && isAnamConnected) {
       hasGreetedRef.current = true;
       const greetingTimer = setTimeout(() => {
         const greeting = `Hey! It's so good to see you. How are you doing today?`;
         playCompanionSpeech(greeting);
-      }, 1200);
+      }, 700);
       return () => clearTimeout(greetingTimer);
     }
-  }, [activeAvatar?.id, isLoading]);
+  }, [activeAvatar?.id, isAnamConnected]);
+
+  // Fallback greeting if WebRTC connection takes longer than 5 seconds
+  useEffect(() => {
+    if (activeAvatar && !hasGreetedRef.current && !isLoading && !isAnamConnecting && !isAnamConnected) {
+      const fallbackGreetingTimer = setTimeout(() => {
+        if (!hasGreetedRef.current) {
+          hasGreetedRef.current = true;
+          const greeting = `Hey! It's so good to see you. How are you doing today?`;
+          playCompanionSpeech(greeting);
+        }
+      }, 5000);
+      return () => clearTimeout(fallbackGreetingTimer);
+    }
+  }, [activeAvatar?.id, isLoading, isAnamConnecting, isAnamConnected]);
 
   // 8. Toggle Mute
   const toggleMute = () => {
@@ -511,198 +532,205 @@ function CallContent() {
       </header>
 
       {/* 2. Main Viewport: Single Frame Layout (Zero Scroll) */}
-      <main className="flex-1 min-h-0 flex flex-col items-center justify-between p-2 sm:px-6 sm:py-3 overflow-hidden w-full max-w-6xl mx-auto">
-        {isLoading ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3">
+      <main
+        onClick={() => {
+          const videoEl = document.getElementById("anam-persona-video");
+          if (videoEl && videoEl.paused) {
+            videoEl.play().catch(() => {});
+          }
+        }}
+        className="flex-1 min-h-0 flex flex-col items-center justify-between p-2 sm:px-6 sm:py-3 overflow-hidden w-full max-w-6xl mx-auto relative"
+      >
+        {/* Loading Overlay (keeps DOM intact beneath it) */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-[#0D0D0D]/90 backdrop-blur-md z-40 flex flex-col items-center justify-center gap-3">
             <Loader2 size={36} className="text-[#A58CF4] animate-spin" />
             <p className="text-[13px] text-[rgba(250,250,250,0.7)] font-medium">
               Connecting to live video call...
             </p>
           </div>
-        ) : (
-          <>
-            {/* 16:9 Cinematic Widescreen Avatar Frame */}
-            <div className="w-full max-w-[calc((100vh-215px)*16/9)] aspect-[16/9] max-h-[calc(100vh-215px)] min-h-[240px] relative rounded-2xl sm:rounded-3xl overflow-hidden bg-black border border-[#A58CF4]/30 shadow-[0_16px_70px_rgba(67,48,117,0.35)] flex items-center justify-center shrink mx-auto">
-              {/* Anam.ai Real-Time 25fps Live WebRTC Video Element */}
-              <video
-                id="anam-persona-video"
-                autoPlay
-                playsInline
-                className={`w-full h-full object-cover transition-opacity duration-700 ${
-                  isAnamConnected ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-                }`}
-              />
+        )}
 
-              {/* Seamless Companion Photo Display (During Initial Connect) */}
-              <div
-                className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${
-                  isAnamConnected ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
-                }`}
-              >
-                {photoUrl ? (
-                  <div className="relative w-full h-full overflow-hidden bg-black">
-                    {/* Blurred background backdrop filling entire 16:9 widescreen */}
-                    <img
-                      src={photoUrl}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110 pointer-events-none"
-                    />
-                    {/* Portrait image scaled with object-cover and centered at 65% to focus on face and shoulders */}
-                    <img
-                      src={photoUrl}
-                      alt={activeAvatar?.name || "Companion"}
-                      className={`relative w-full h-full object-cover object-[center_65%] transition-transform duration-1000 ${
-                        isSpeaking ? "scale-[1.03]" : "scale-100"
-                      }`}
-                    />
-                    {/* Subtle cinematic gradient vignette */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
-                    <div className="w-20 h-20 rounded-full bg-[#433075]/30 border border-[#A58CF4]/40 flex items-center justify-center text-[#A58CF4]">
-                      <User size={36} />
-                    </div>
-                    <p className="text-[14px] font-medium text-[#FAFAFA]">
-                      {activeAvatar?.name || "Companion"}
-                    </p>
-                    <p className="text-[11px] text-[rgba(250,250,250,0.5)]">
-                      Connecting live interactive digital human...
-                    </p>
-                  </div>
+        {/* 16:9 Cinematic Widescreen Avatar Frame */}
+        <div className="w-full max-w-[calc((100vh-215px)*16/9)] aspect-[16/9] max-h-[calc(100vh-215px)] min-h-[240px] relative rounded-2xl sm:rounded-3xl overflow-hidden bg-black border border-[#A58CF4]/30 shadow-[0_16px_70px_rgba(67,48,117,0.35)] flex items-center justify-center shrink mx-auto">
+          {/* Anam.ai Real-Time 25fps Live WebRTC Video Element - ALWAYS MOUNTED IN DOM */}
+          <video
+            id="anam-persona-video"
+            autoPlay
+            playsInline
+            className={`w-full h-full object-cover transition-opacity duration-700 ${
+              isAnamConnected ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+            }`}
+          />
+
+          {/* Seamless Companion Photo Display (During Initial Connect) */}
+          <div
+            className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${
+              isAnamConnected ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
+            }`}
+          >
+            {photoUrl ? (
+              <div className="relative w-full h-full overflow-hidden bg-black">
+                {/* Blurred background backdrop filling entire 16:9 widescreen */}
+                <img
+                  src={photoUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110 pointer-events-none"
+                />
+                {/* Portrait image scaled with object-cover and centered at 65% to focus on face and shoulders */}
+                <img
+                  src={photoUrl}
+                  alt={activeAvatar?.name || "Companion"}
+                  className={`relative w-full h-full object-cover object-[center_65%] transition-transform duration-1000 ${
+                    isSpeaking ? "scale-[1.03]" : "scale-100"
+                  }`}
+                />
+                {/* Subtle cinematic gradient vignette */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
+                <div className="w-20 h-20 rounded-full bg-[#433075]/30 border border-[#A58CF4]/40 flex items-center justify-center text-[#A58CF4]">
+                  <User size={36} />
+                </div>
+                <p className="text-[14px] font-medium text-[#FAFAFA]">
+                  {activeAvatar?.name || "Companion"}
+                </p>
+                <p className="text-[11px] text-[rgba(250,250,250,0.5)]">
+                  Connecting live interactive digital human...
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Status Badge Over Video (Top Left) */}
+          <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-[#A58CF4]/25 text-[10.5px] text-[#FAFAFA]">
+            <Radio
+              size={10}
+              className={isAnamConnected ? "text-emerald-400 animate-pulse" : "text-amber-400"}
+            />
+            <span>
+              {isAnamConnected
+                ? "25fps Live Digital Human"
+                : isAnamConnecting
+                ? "Connecting Live Avatar..."
+                : "Interactive 16:9 Ready"}
+            </span>
+          </div>
+
+          {/* Speaking Indicator Badge (Top Right) */}
+          {isSpeaking && (
+            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#433075]/80 backdrop-blur-md border border-[#A58CF4]/40 text-[10.5px] text-[#FAFAFA] animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-[#A58CF4] animate-ping" />
+              <span>Speaking...</span>
+            </div>
+          )}
+
+          {/* Subtitles & Captions Overlaid at Bottom Edge of 16:9 Video */}
+          <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-6 sm:right-6 z-20 pointer-events-auto">
+            <div className="px-4 py-2 sm:py-2.5 rounded-2xl bg-black/75 backdrop-blur-xl border border-[#A58CF4]/30 shadow-2xl flex items-center gap-2.5 transition-all">
+              <div className="w-6 h-6 rounded-full bg-[#433075]/60 border border-[#A58CF4]/40 flex items-center justify-center shrink-0 text-[#A58CF4]">
+                <Heart size={12} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] sm:text-[13px] leading-snug text-[#FAFAFA] font-medium truncate">
+                  {subtitle || `Connected with ${activeAvatar?.name || "companion"}.`}
+                </p>
+                {transcript && (
+                  <p className="text-[11px] text-[#A58CF4] italic truncate flex items-center gap-1 mt-0.5">
+                    <Mic size={10} className="animate-pulse" />
+                    &ldquo;{transcript}&rdquo;
+                  </p>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Status Badge Over Video (Top Left) */}
-              <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-[#A58CF4]/25 text-[10.5px] text-[#FAFAFA]">
-                <Radio
-                  size={10}
-                  className={isAnamConnected ? "text-emerald-400 animate-pulse" : "text-amber-400"}
-                />
-                <span>
-                  {isAnamConnected
-                    ? "25fps Live Digital Human"
-                    : isAnamConnecting
-                    ? "Connecting Live Avatar..."
-                    : "Interactive 16:9 Ready"}
-                </span>
-              </div>
+        {/* 3. Controls Section Anchored Below 16:9 Avatar (Same Viewport Frame) */}
+        <div className="w-full max-w-4xl flex flex-col items-center gap-2 sm:gap-2.5 shrink-0 mt-2">
+          {/* Compact Quick Chat Input Bar */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (textInput.trim()) {
+                handleSendMessage(textInput.trim());
+              }
+            }}
+            className="w-full max-w-2xl flex items-center gap-2"
+          >
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder={`Say something to ${activeAvatar?.name || "companion"}...`}
+              className="flex-1 px-4 py-2 rounded-full bg-[#1A1A2E]/80 border border-[#A58CF4]/25 text-[12px] text-[#FAFAFA] placeholder:text-[rgba(250,250,250,0.4)] focus:outline-none focus:border-[#A58CF4] transition-all shadow-inner"
+            />
+            <button
+              type="submit"
+              disabled={!textInput.trim()}
+              className="p-2 sm:px-4 sm:py-2 rounded-full bg-[#433075] hover:bg-[#A58CF4]/80 disabled:opacity-40 text-[#FAFAFA] text-[12px] font-medium transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
+              title="Send Message"
+            >
+              <Send size={13} />
+              <span className="hidden sm:inline">Send</span>
+            </button>
+          </form>
 
-              {/* Speaking Indicator Badge (Top Right) */}
-              {isSpeaking && (
-                <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#433075]/80 backdrop-blur-md border border-[#A58CF4]/40 text-[10.5px] text-[#FAFAFA] animate-pulse">
-                  <span className="w-2 h-2 rounded-full bg-[#A58CF4] animate-ping" />
-                  <span>Speaking...</span>
-                </div>
+          {/* Floating Call Action Dock */}
+          <div className="flex items-center gap-3 sm:gap-4 px-5 py-2 rounded-full bg-[#0D0D0D]/90 backdrop-blur-2xl border border-[#A58CF4]/30 shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
+            {/* Volume / Mute Toggle */}
+            <button
+              type="button"
+              onClick={toggleMute}
+              className={`p-3 rounded-full border transition-all cursor-pointer ${
+                isMuted
+                  ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
+                  : "bg-[#433075]/30 hover:bg-[#433075]/60 border-[#A58CF4]/25 text-[#FAFAFA]"
+              }`}
+              title={isMuted ? "Unmute Audio" : "Mute Audio"}
+            >
+              {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+            </button>
+
+            {/* Big Interactive Microphone Button */}
+            <button
+              type="button"
+              onClick={isListening ? stopListening : startListening}
+              className={`relative p-4 rounded-full border transition-all cursor-pointer shadow-xl ${
+                isListening
+                  ? "bg-rose-600 border-rose-400 text-white animate-pulse scale-110 shadow-rose-600/50"
+                  : "bg-gradient-to-tr from-[#433075] to-[#A58CF4] hover:brightness-110 border-[#A58CF4]/50 text-white shadow-[#433075]/60 hover:scale-105"
+              }`}
+              title={isListening ? "Listening... Click to stop" : "Click to speak"}
+            >
+              {isListening ? <MicOff size={22} /> : <Mic size={22} />}
+              {isListening && (
+                <span className="absolute -inset-1 rounded-full border-2 border-rose-400 animate-ping pointer-events-none" />
               )}
+            </button>
 
-              {/* Subtitles & Captions Overlaid at Bottom Edge of 16:9 Video */}
-              <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-6 sm:right-6 z-20 pointer-events-auto">
-                <div className="px-4 py-2 sm:py-2.5 rounded-2xl bg-black/75 backdrop-blur-xl border border-[#A58CF4]/30 shadow-2xl flex items-center gap-2.5 transition-all">
-                  <div className="w-6 h-6 rounded-full bg-[#433075]/60 border border-[#A58CF4]/40 flex items-center justify-center shrink-0 text-[#A58CF4]">
-                    <Heart size={12} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] sm:text-[13px] leading-snug text-[#FAFAFA] font-medium truncate">
-                      {subtitle || `Connected with ${activeAvatar?.name || "companion"}.`}
-                    </p>
-                    {transcript && (
-                      <p className="text-[11px] text-[#A58CF4] italic truncate flex items-center gap-1 mt-0.5">
-                        <Mic size={10} className="animate-pulse" />
-                        &ldquo;{transcript}&rdquo;
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Refresh Stream Button */}
+            <button
+              type="button"
+              onClick={() => initAnamSession()}
+              className="p-3 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#FAFAFA] transition-all cursor-pointer"
+              title="Reconnect Live Avatar Stream"
+            >
+              <RotateCcw size={17} />
+            </button>
 
-            {/* 3. Controls Section Anchored Below 16:9 Avatar (Same Viewport Frame) */}
-            <div className="w-full max-w-4xl flex flex-col items-center gap-2 sm:gap-2.5 shrink-0 mt-2">
-              {/* Compact Quick Chat Input Bar */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (textInput.trim()) {
-                    handleSendMessage(textInput.trim());
-                  }
-                }}
-                className="w-full max-w-2xl flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder={`Say something to ${activeAvatar?.name || "companion"}...`}
-                  className="flex-1 px-4 py-2 rounded-full bg-[#1A1A2E]/80 border border-[#A58CF4]/25 text-[12px] text-[#FAFAFA] placeholder:text-[rgba(250,250,250,0.4)] focus:outline-none focus:border-[#A58CF4] transition-all shadow-inner"
-                />
-                <button
-                  type="submit"
-                  disabled={!textInput.trim()}
-                  className="p-2 sm:px-4 sm:py-2 rounded-full bg-[#433075] hover:bg-[#A58CF4]/80 disabled:opacity-40 text-[#FAFAFA] text-[12px] font-medium transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
-                  title="Send Message"
-                >
-                  <Send size={13} />
-                  <span className="hidden sm:inline">Send</span>
-                </button>
-              </form>
-
-              {/* Floating Call Action Dock */}
-              <div className="flex items-center gap-3 sm:gap-4 px-5 py-2 rounded-full bg-[#0D0D0D]/90 backdrop-blur-2xl border border-[#A58CF4]/30 shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
-                {/* Volume / Mute Toggle */}
-                <button
-                  type="button"
-                  onClick={toggleMute}
-                  className={`p-3 rounded-full border transition-all cursor-pointer ${
-                    isMuted
-                      ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
-                      : "bg-[#433075]/30 hover:bg-[#433075]/60 border-[#A58CF4]/25 text-[#FAFAFA]"
-                  }`}
-                  title={isMuted ? "Unmute Audio" : "Mute Audio"}
-                >
-                  {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
-                </button>
-
-                {/* Big Interactive Microphone Button */}
-                <button
-                  type="button"
-                  onClick={isListening ? stopListening : startListening}
-                  className={`relative p-4 rounded-full border transition-all cursor-pointer shadow-xl ${
-                    isListening
-                      ? "bg-rose-600 border-rose-400 text-white animate-pulse scale-110 shadow-rose-600/50"
-                      : "bg-gradient-to-tr from-[#433075] to-[#A58CF4] hover:brightness-110 border-[#A58CF4]/50 text-white shadow-[#433075]/60 hover:scale-105"
-                  }`}
-                  title={isListening ? "Listening... Click to stop" : "Click to speak"}
-                >
-                  {isListening ? <MicOff size={22} /> : <Mic size={22} />}
-                  {isListening && (
-                    <span className="absolute -inset-1 rounded-full border-2 border-rose-400 animate-ping pointer-events-none" />
-                  )}
-                </button>
-
-                {/* Refresh Stream Button */}
-                <button
-                  type="button"
-                  onClick={() => initAnamSession()}
-                  className="p-3 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#FAFAFA] transition-all cursor-pointer"
-                  title="Reconnect Live Avatar Stream"
-                >
-                  <RotateCcw size={17} />
-                </button>
-
-                {/* Hang Up Button */}
-                <button
-                  type="button"
-                  onClick={handleEndCall}
-                  className="p-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/40 transition-all cursor-pointer hover:scale-105"
-                  title="End Video Call"
-                >
-                  <PhoneOff size={17} />
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+            {/* Hang Up Button */}
+            <button
+              type="button"
+              onClick={handleEndCall}
+              className="p-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/40 transition-all cursor-pointer hover:scale-105"
+              title="End Video Call"
+            >
+              <PhoneOff size={17} />
+            </button>
+          </div>
+        </div>
       </main>
 
       {/* Portrait Photo Upload Modal */}
