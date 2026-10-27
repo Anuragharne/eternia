@@ -80,19 +80,6 @@ export const api = {
   getAvatars: () => apiCall("/avatars"),
   getAvatar: (id) => apiCall(`/avatars/${id}`),
   createAvatar: (data) => apiCall("/avatars", { method: "POST", body: JSON.stringify(data) }),
-  createAvatarWithMedia: (formData) =>
-    apiCall("/avatars/create-with-media", {
-      method: "POST",
-      body: formData,
-    }),
-  cloneAvatarVoice: (avatarId, audioFileOrBlob) => {
-    const formData = new FormData();
-    formData.append("file", audioFileOrBlob);
-    return apiCall(`/avatars/${avatarId}/clone-voice`, {
-      method: "POST",
-      body: formData,
-    });
-  },
   updateAvatar: (id, data) => apiCall(`/avatars/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteAvatar: (id) => apiCall(`/avatars/${id}`, { method: "DELETE" }),
 
@@ -249,22 +236,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ avatar_id: avatarId }),
     }),
-
-  // Multi-media Avatar Creation & Instant Voice Cloning
-  createAvatarWithMedia: (formData) =>
-    apiCall("/avatars/create-with-media", {
-      method: "POST",
-      body: formData,
-    }),
-
-  cloneAvatarVoice: (avatarId, audioFile) => {
-    const formData = new FormData();
-    formData.append("file", audioFile);
-    return apiCall(`/avatars/${avatarId}/clone-voice`, {
-      method: "POST",
-      body: formData,
-    });
-  },
 };
 
 
