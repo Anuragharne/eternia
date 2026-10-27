@@ -226,5 +226,64 @@ class VoiceService:
             logger.info("Successfully synthesized %d bytes of audio.", len(audio_data))
             return audio_data
 
+    async def create_instant_voice_clone(
+        self,
+        name: str,
+        audio_bytes: bytes,
+        filename: str = "voice_sample.mp3",
+    ) -> str:
+        """Create an instant voice clone in ElevenLabs from an audio sample.
+
+        Returns:
+            voice_id: The ElevenLabs custom voice ID string.
+        """
+        if not audio_bytes:
+            raise ValueError("Audio sample cannot be empty.")
+
+        url = "https://api.elevenlabs.io/v1/voices/add"
+        headers = {"xi-api-key": settings.ELEVENLABS_API_KEY}
+        data = {
+            "name": f"{name} (Eternia Clone)",
+            "description": f"Personal instant voice clone for AI Companion {name}",
+        }
+
+        content_type = "audio/mpeg"
+        lower_fn = filename.lower()
+        if lower_fn.endswith(".wav"):
+            content_type = "audio/wav"
+        elif lower_fn.endswith(".ogg"):
+            content_type = "audio/ogg"
+        elif lower_fn.endswith(".webm"):
+            content_type = "audio/webm"
+        elif lower_fn.endswith(".m4a"):
+            content_type = "audio/mp4"
+
+        files = [
+            ("files", (filename, audio_bytes, content_type))
+        ]
+
+        logger.info("Submitting voice sample to ElevenLabs Instant Voice Clone API for %s...", name)
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.post(url, headers=headers, data=data, files=files)
+            if resp.status_code not in (200, 201):
+                logger.error("ElevenLabs voice cloning failed [%d]: %s", resp.status_code, resp.text)
+                raise RuntimeError(f"ElevenLabs voice cloning failed: {resp.text}")
+
+            result = resp.json()
+            voice_id = result.get("voice_id")
+            if not voice_id:
+                raise RuntimeError(f"No voice_id in ElevenLabs response: {result}")
+
+            logger.info("Successfully created ElevenLabs voice clone: %s for %s", voice_id, name)
+            return voice_id
+
+    async def delete_voice(self, voice_id: str) -> bool:
+        """Delete a custom cloned voice from ElevenLabs to free up voice slots."""
+        url = f"https://api.elevenlabs.io/v1/voices/{voice_id}"
+        headers = {"xi-api-key": settings.ELEVENLABS_API_KEY}
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.delete(url, headers=headers)
+            return resp.status_code in (200, 204)
+
 
 voice_service = VoiceService()

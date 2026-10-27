@@ -20,10 +20,16 @@ import {
   Heart,
   Smile,
   User,
+  Plus,
+  ChevronDown,
+  Volume2 as VolumeIcon,
+  UserPlus,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
 import { AvatarPhotoUpload } from "../../components/chat/AvatarPhotoUpload";
+import { AvatarVoiceUpload } from "../../components/chat/AvatarVoiceUpload";
+import { CreateAvatarModal } from "../../components/chat/CreateAvatarModal";
 
 function CallContent() {
   const searchParams = useSearchParams();
@@ -50,6 +56,9 @@ function CallContent() {
 
   // Modals & Text Input
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
+  const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
   const [textInput, setTextInput] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [callStatus, setCallStatus] = useState("Connecting to companion...");
@@ -134,6 +143,36 @@ function CallContent() {
       }
     };
   }, [avatarId]);
+
+  // Switch companion smoothly within video call
+  const switchAvatar = async (targetAvatar) => {
+    if (!targetAvatar || targetAvatar.id === activeAvatar?.id) {
+      setShowAvatarDropdown(false);
+      return;
+    }
+    setShowAvatarDropdown(false);
+    setIsLoading(true);
+    hasGreetedRef.current = false;
+    setIsAnamConnected(false);
+
+    if (anamClientRef.current) {
+      const prev = anamClientRef.current;
+      anamClientRef.current = null;
+      await prev.stopStreaming().catch(() => {});
+    }
+
+    setActiveAvatar(targetAvatar);
+
+    try {
+      const photoRes = await api.getAvatarPhotoUrl(targetAvatar.id);
+      if (photoRes?.photo_url) {
+        setPhotoUrl(photoRes.photo_url);
+      }
+    } catch {}
+
+    setSubtitle(`Connected with ${targetAvatar.name}.`);
+    setIsLoading(false);
+  };
 
   // 3. Initialize Anam.ai 25fps Real-Time WebRTC Live Avatar
   const initAnamSession = async () => {
@@ -484,39 +523,101 @@ function CallContent() {
           </Link>
 
           {activeAvatar && (
-            <div className="flex items-center gap-2.5">
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${
-                  isAnamConnected ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" : "bg-amber-400"
-                }`}
-              />
-              <div>
-                <h1 className="text-[13.5px] font-semibold tracking-wide text-[#FAFAFA] leading-tight flex items-center gap-1.5">
-                  {activeAvatar.name}
-                  <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#433075]/40 text-[#A58CF4] border border-[#A58CF4]/20 font-normal">
-                    {activeAvatar.relationship || "Companion"}
-                  </span>
-                </h1>
-                <p className="text-[10px] text-[rgba(250,250,250,0.6)]">
-                  {callStatus}
-                </p>
-              </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowAvatarDropdown(!showAvatarDropdown)}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-[#433075]/25 border border-transparent hover:border-[#A58CF4]/20 transition-all text-left cursor-pointer"
+              >
+                <span
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                    isAnamConnected ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" : "bg-amber-400"
+                  }`}
+                />
+                <div>
+                  <h1 className="text-[13px] font-semibold tracking-wide text-[#FAFAFA] leading-tight flex items-center gap-1.5">
+                    {activeAvatar.name}
+                    <ChevronDown size={13} className="text-[#A58CF4]" />
+                    <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#433075]/40 text-[#A58CF4] border border-[#A58CF4]/20 font-normal hidden sm:inline">
+                      {activeAvatar.relationship || "Companion"}
+                    </span>
+                  </h1>
+                  <p className="text-[10px] text-[rgba(250,250,250,0.6)]">
+                    {callStatus}
+                  </p>
+                </div>
+              </button>
+
+              {/* Avatar Switcher Dropdown */}
+              {showAvatarDropdown && (
+                <div className="absolute top-full left-0 mt-2 w-64 rounded-2xl bg-[#14121F] border border-[#A58CF4]/30 shadow-2xl p-2 z-50">
+                  <div className="text-[10px] uppercase tracking-wider text-[rgba(250,250,250,0.5)] px-3 py-1 font-semibold">
+                    Switch Companion
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-1 my-1">
+                    {avatars.map((av) => (
+                      <button
+                        key={av.id}
+                        type="button"
+                        onClick={() => switchAvatar(av)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[12px] transition-all cursor-pointer ${
+                          av.id === activeAvatar.id
+                            ? "bg-[#433075]/60 text-white font-medium border border-[#A58CF4]/40"
+                            : "hover:bg-[#433075]/30 text-[rgba(250,250,250,0.8)] hover:text-white"
+                        }`}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-[#433075]/40 border border-[#A58CF4]/30 flex items-center justify-center text-[10px] font-semibold text-[#A58CF4]">
+                          {av.name.charAt(0)}
+                        </div>
+                        <span className="flex-1 truncate">{av.name}</span>
+                        {av.relationship && (
+                          <span className="text-[10px] text-[#A58CF4]/70">{av.relationship}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="pt-2 border-t border-[#A58CF4]/15">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAvatarDropdown(false);
+                        setShowCreateAvatarModal(true);
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-gradient-to-r from-[#433075] to-[#A58CF4] text-white text-[11.5px] font-medium hover:brightness-110 transition-all cursor-pointer"
+                    >
+                      <Plus size={13} />
+                      <span>Create New Companion</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Center: Call Duration Pill */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#433075]/25 border border-[#A58CF4]/20 text-[11.5px] text-[#FAFAFA]">
+        <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-[#433075]/25 border border-[#A58CF4]/20 text-[11.5px] text-[#FAFAFA]">
           <Clock size={12} className="text-[#A58CF4]" />
           <span className="font-mono tracking-wider">{formatDuration(callDuration)}</span>
         </div>
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2 relative">
-          <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#433075]/20 border border-[#A58CF4]/20 text-[11px] text-[#A58CF4]">
+          <div className="hidden lg:flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#433075]/20 border border-[#A58CF4]/20 text-[11px] text-[#A58CF4]">
             <Sparkles size={11} className="text-[#A58CF4]" />
             <span>Anam Cara-4 25fps</span>
           </div>
+
+          {/* Voice Cloning Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setShowVoiceModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#A58CF4] hover:text-[#FAFAFA] text-[11px] font-medium transition-all cursor-pointer"
+            title="Clone or Change Voice"
+          >
+            <VolumeIcon size={12} />
+            <span className="hidden sm:inline">Voice</span>
+          </button>
 
           {/* Photo Upload Modal Trigger */}
           <button
@@ -527,6 +628,17 @@ function CallContent() {
           >
             <Camera size={12} />
             <span className="hidden sm:inline">Photo</span>
+          </button>
+
+          {/* Create Avatar Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setShowCreateAvatarModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#433075] to-[#A58CF4] hover:brightness-110 text-white text-[11px] font-medium transition-all cursor-pointer shadow-sm"
+            title="Create a New Companion Avatar"
+          >
+            <UserPlus size={12} />
+            <span className="hidden sm:inline">New Avatar</span>
           </button>
         </div>
       </header>
@@ -742,6 +854,39 @@ function CallContent() {
           onPhotoUpdated={(newUrl) => {
             setPhotoUrl(newUrl);
             setShowPhotoModal(false);
+          }}
+        />
+      )}
+
+      {/* Instant Voice Cloning Modal */}
+      {showVoiceModal && activeAvatar && (
+        <AvatarVoiceUpload
+          avatar={activeAvatar}
+          onClose={() => setShowVoiceModal(false)}
+          onVoiceCloned={async () => {
+            setShowVoiceModal(false);
+            setSubtitle(`Cloned voice activated for ${activeAvatar.name}! Reconnecting...`);
+            const list = await api.getAvatars().catch(() => []);
+            if (list && list.length > 0) {
+              const updated = list.find((a) => a.id === activeAvatar.id);
+              if (updated) setActiveAvatar(updated);
+            }
+            setTimeout(() => {
+              initAnamSession();
+            }, 600);
+          }}
+        />
+      )}
+
+      {/* In-Call Create Companion Modal */}
+      {showCreateAvatarModal && (
+        <CreateAvatarModal
+          onClose={() => setShowCreateAvatarModal(false)}
+          onAvatarCreated={async (newAvatar) => {
+            setShowCreateAvatarModal(false);
+            const list = await api.getAvatars().catch(() => []);
+            setAvatars(list || []);
+            switchAvatar(newAvatar);
           }}
         />
       )}
