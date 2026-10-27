@@ -600,22 +600,22 @@ function CallContent() {
   ];
 
   return (
-    <div className="h-screen max-h-screen overflow-hidden bg-[#0D0D0D] text-[#FAFAFA] flex flex-col relative select-none">
-      {/* Background Ambient Violet Backlight Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full bg-gradient-to-tr from-[#433075]/30 via-[#A58CF4]/15 to-transparent blur-3xl pointer-events-none -z-10" />
+    <div className="h-screen max-h-screen overflow-hidden flex flex-col relative select-none" style={{ background: "var(--void)", color: "var(--text-0)" }}>
+      {/* Background Ambient Glow */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full bg-gradient-to-tr from-[#531F6D]/30 via-[#BC96E6]/15 to-transparent blur-3xl pointer-events-none -z-10" />
 
       {/* Hidden Audio Elements for WebRTC and TTS */}
       <audio ref={simliAudioRef} autoPlay playsInline />
       <audio ref={companionAudioRef} crossOrigin="anonymous" />
 
       {/* 1. Top Header Bar (56px) */}
-      <header className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-[#A58CF4]/15 bg-[#0D0D0D]/80 backdrop-blur-xl z-20 shrink-0">
+      <header className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-[#BC96E6]/15 bg-[#210B2C]/80 backdrop-blur-xl z-20 shrink-0">
         <div className="flex items-center gap-3">
           <Link
             href={activeAvatar ? `/chat?avatarId=${activeAvatar.id}` : "/chat"}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#FAFAFA] text-[12px] font-medium transition-all no-underline"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#3B184C]/50 hover:bg-[#3B184C]/80 border border-[#BC96E6]/25 text-[#FAF6FF] text-[12px] font-medium transition-all no-underline"
           >
-            <ArrowLeft size={14} className="text-[#A58CF4]" />
+            <ArrowLeft size={14} className="text-[#BC96E6]" />
             <span className="hidden sm:inline">Back to Chat</span>
           </Link>
 
@@ -863,7 +863,7 @@ function CallContent() {
                   className={`relative p-4 rounded-full border transition-all cursor-pointer shadow-xl ${
                     isListening
                       ? "bg-rose-600 border-rose-400 text-white animate-pulse scale-110 shadow-rose-600/50"
-                      : "bg-gradient-to-tr from-[#433075] to-[#A58CF4] hover:brightness-110 border-[#A58CF4]/50 text-white shadow-[#433075]/60 hover:scale-105"
+                      : "bg-gradient-to-tr from-[#FFD166] to-[#FFBE3B] hover:brightness-110 border-[#FFD166]/60 text-[#1A0824] shadow-[0_0_24px_rgba(255,209,102,0.45)] hover:scale-105"
                   }`}
                   title={isListening ? "Listening... Click to stop" : "Click to speak"}
                 >
@@ -878,12 +878,12 @@ function CallContent() {
                   type="button"
                   onClick={() => initSimliSession(selectedFaceId)}
                   disabled={isSimliConnecting}
-                  className="p-3 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#A58CF4]/25 text-[#FAFAFA] transition-all cursor-pointer disabled:opacity-50"
+                  className="p-3 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 border border-[#BC96E6]/25 text-[#FAF6FF] transition-all cursor-pointer disabled:opacity-50"
                   title="Reconnect Simli Live Stream"
                 >
                   <RotateCcw
                     size={17}
-                    className={`text-[#A58CF4] ${isSimliConnecting ? "animate-spin" : ""}`}
+                    className={`text-[#BC96E6] ${isSimliConnecting ? "animate-spin" : ""}`}
                   />
                 </button>
 
@@ -905,11 +905,11 @@ function CallContent() {
       {/* Portrait Photo Upload Modal */}
       {showPhotoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md rounded-3xl bg-[#0D0D0D] border border-[#A58CF4]/30 p-6 shadow-2xl">
-            <h3 className="text-[16px] font-bold text-[#FAFAFA] mb-1">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#210B2C] border border-[#BC96E6]/30 p-6 shadow-2xl">
+            <h3 className="text-[16px] font-bold text-[#FAF6FF] mb-1">
               Update Companion Photo
             </h3>
-            <p className="text-[12px] text-[rgba(250,250,250,0.6)] mb-4">
+            <p className="text-[12px] text-[#D3C1E8] mb-4">
               Upload a clear front-facing portrait to customize your companion&apos;s appearance.
             </p>
             <AvatarPhotoUpload
@@ -925,7 +925,7 @@ function CallContent() {
               <button
                 type="button"
                 onClick={() => setShowPhotoModal(false)}
-                className="px-4 py-1.5 rounded-full bg-[#433075]/30 hover:bg-[#433075]/60 text-[12px] text-[#FAFAFA] border border-[#A58CF4]/25 transition-all cursor-pointer"
+                className="px-4 py-1.5 rounded-full bg-[#3B184C]/50 hover:bg-[#3B184C]/80 text-[12px] text-[#FAF6FF] border border-[#BC96E6]/25 transition-all cursor-pointer"
               >
                 Close
               </button>
@@ -941,8 +941,8 @@ export default function CallPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen bg-[#0D0D0D] flex items-center justify-center text-[#FAFAFA]">
-          <Loader2 size={32} className="animate-spin text-[#A58CF4]" />
+        <div className="h-screen flex items-center justify-center" style={{ background: "var(--void)", color: "var(--text-0)" }}>
+          <Loader2 size={36} className="animate-spin text-[#FFD166]" />
         </div>
       }
     >

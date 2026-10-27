@@ -17,6 +17,9 @@ import {
   LogOut,
   ExternalLink,
   Plus,
+  Lock,
+  Layers,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../lib/api";
@@ -117,7 +120,6 @@ export default function SettingsPage() {
     setIsDeleting(true);
     setDeleteError("");
     try {
-      // Clear data locally
       localStorage.clear();
       window.location.href = "/";
     } catch (err) {
@@ -127,55 +129,94 @@ export default function SettingsPage() {
     }
   };
 
+  const tabs = [
+    { id: "profile", label: "Profile & Plan", icon: User },
+    { id: "companions", label: "Companions & Consent", icon: Shield },
+    { id: "data", label: "Data & Archives", icon: Download },
+    { id: "danger", label: "Danger Zone", icon: Trash2 },
+  ];
+
   return (
-    <div className="w-full min-h-screen relative overflow-x-hidden bg-[#0D0D0D] text-[#FAFAFA]">
+    <div
+      className="w-full min-h-screen relative overflow-x-hidden flex flex-col"
+      style={{ background: "var(--void)", color: "var(--text-0)" }}
+    >
+      {/* Aurora Ambient Background Glow */}
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+          backgroundImage:
+            "radial-gradient(120% 80% at 50% 0%, rgba(255, 209, 102, 0.12) 0%, rgba(33, 11, 44, 0.94) 55%, var(--void) 100%)",
+        }}
+      />
+
       {/* Unified Floating Navbar */}
       <Navbar />
 
-      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-28 pb-16">
-        
+      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-28 pb-16 flex-1">
         {/* Top Header Banner */}
-        <div className="mb-8 pb-4 border-b border-[#A58CF4]/20 flex items-center justify-between">
+        <div
+          className="mb-8 pb-5 flex items-center justify-between"
+          style={{ borderBottom: "1px solid var(--border-1)" }}
+        >
           <div>
-            <h1 className="text-[28px] sm:text-[32px] font-medium text-[#FAFAFA] tracking-tight">
+            <span
+              className="text-[11px] font-bold uppercase tracking-wider block mb-1"
+              style={{ color: "var(--sunglow)" }}
+            >
+              Control Center
+            </span>
+            <h1
+              className="text-[28px] sm:text-[32px] font-bold tracking-tight"
+              style={{ fontFamily: "var(--font-display)", color: "#FAF6FF" }}
+            >
               Settings & Privacy
             </h1>
-            <p className="text-[13px] text-[rgba(250,250,250,0.65)] mt-1">
+            <p className="text-[13.5px] mt-1" style={{ color: "var(--text-1)" }}>
               Manage your chat configurations, companion profiles, and exported memory archives.
             </p>
           </div>
           <Link
             href="/chat"
-            className="btn-pill-ghost text-[12px] px-4 py-2 flex items-center gap-1.5 no-underline"
+            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+            style={{ textDecoration: "none" }}
           >
             <ArrowLeft size={14} /> Back to Chat
           </Link>
         </div>
 
-        {/* 2-Column Settings Grid */}
+        {/* 2-Column Settings Layout */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-          
           {/* Sidebar Navigation */}
           <aside className="md:col-span-4 lg:col-span-3 flex flex-col gap-2">
-            {[
-              { id: "profile", label: "Profile & Plan", icon: User },
-              { id: "companions", label: "Companions & Consent", icon: Shield },
-              { id: "data", label: "Data & Archives", icon: Download },
-              { id: "danger", label: "Danger Zone", icon: Trash2 },
-            ].map((tab) => {
+            {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-[13.5px] font-medium transition-all cursor-pointer text-left ${
-                    isActive
-                      ? "bg-[#433075] text-[#FAFAFA] border border-[#A58CF4]/40 shadow-sm"
-                      : "bg-[#0D0D0D] text-[rgba(250,250,250,0.7)] hover:bg-[#433075]/25 hover:text-[#FAFAFA] border border-transparent"
-                  }`}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-[13.5px] font-medium transition-all cursor-pointer text-left"
+                  style={{
+                    background: isActive
+                      ? "rgba(255, 209, 102, 0.14)"
+                      : "var(--surface-0)",
+                    border: isActive
+                      ? "1px solid rgba(255, 209, 102, 0.5)"
+                      : "1px solid var(--border-1)",
+                    color: isActive ? "#FAF6FF" : "var(--text-1)",
+                    boxShadow: isActive
+                      ? "0 4px 16px rgba(255, 209, 102, 0.18), inset 0 1px 0 rgba(255,209,102,0.2)"
+                      : "none",
+                  }}
                 >
-                  <Icon size={17} className={isActive ? "text-[#A58CF4]" : "text-[rgba(250,250,250,0.5)]"} />
+                  <Icon
+                    size={17}
+                    style={{ color: isActive ? "var(--sunglow)" : "var(--wisteria)" }}
+                  />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -184,68 +225,127 @@ export default function SettingsPage() {
 
           {/* Main Tab Content */}
           <div className="md:col-span-8 lg:col-span-9 space-y-6">
-            
             {/* TAB 1: PROFILE */}
             {activeTab === "profile" && (
               <div className="space-y-6">
-                <div className="rounded-[24px] bg-[#0D0D0D] p-6 sm:p-8 border border-[#A58CF4]/20 shadow-md">
-                  <h3 className="text-[18px] font-medium text-[#FAFAFA] mb-4">
+                {/* Account Card */}
+                <div
+                  className="rounded-[24px] p-6 sm:p-8"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-0)",
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <h3
+                    className="text-[18px] font-medium mb-4"
+                    style={{ color: "var(--text-0)", fontFamily: "var(--font-display)" }}
+                  >
                     Your Account
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-[#433075]/15 border border-[#A58CF4]/15">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-[#A58CF4] block mb-1">
+                    <div
+                      className="p-4 rounded-xl"
+                      style={{
+                        background: "var(--surface-1)",
+                        border: "1px solid var(--border-0)",
+                      }}
+                    >
+                      <label
+                        className="text-[11px] font-semibold uppercase tracking-wider block mb-1"
+                        style={{ color: "var(--lavender)" }}
+                      >
                         Full Name
                       </label>
-                      <p className="text-[14px] text-[#FAFAFA] font-medium">
+                      <p className="text-[14px] font-medium" style={{ color: "var(--text-0)" }}>
                         {profile?.full_name || "Preservation Member"}
                       </p>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-[#433075]/15 border border-[#A58CF4]/15">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-[#A58CF4] block mb-1">
+                    <div
+                      className="p-4 rounded-xl"
+                      style={{
+                        background: "var(--surface-1)",
+                        border: "1px solid var(--border-0)",
+                      }}
+                    >
+                      <label
+                        className="text-[11px] font-semibold uppercase tracking-wider block mb-1"
+                        style={{ color: "var(--lavender)" }}
+                      >
                         Email Address
                       </label>
-                      <p className="text-[14px] text-[#FAFAFA] font-medium">
-                        {user?.email || "N/A (Direct Access Mode)"}
+                      <p className="text-[14px] font-medium" style={{ color: "var(--text-0)" }}>
+                        {user?.email || "Direct Access Mode (Demo)"}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-[24px] bg-[#0D0D0D] p-6 sm:p-8 border border-[#A58CF4]/20 shadow-md">
-                  <div className="flex items-start justify-between mb-4">
+                {/* Preservation Tier Bento Card */}
+                <div
+                  className="rounded-[24px] p-6 sm:p-8"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-0)",
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
                     <div>
-                      <h3 className="text-[18px] font-medium text-[#FAFAFA]">
+                      <h3
+                        className="text-[18px] font-medium"
+                        style={{ color: "var(--text-0)", fontFamily: "var(--font-display)" }}
+                      >
                         Preservation Tier
                       </h3>
-                      <p className="text-[12.5px] text-[rgba(250,250,250,0.65)] mt-0.5">
+                      <p className="text-[12.5px] mt-0.5" style={{ color: "var(--text-1)" }}>
                         Active testing phase with all restrictions unlocked.
                       </p>
                     </div>
-                    <span className="px-3 py-1 rounded-full bg-[#433075] text-[#FAFAFA] text-[11.5px] font-medium border border-[#A58CF4]/30">
+                    <span
+                      className="px-3 py-1 rounded-full text-[11.5px] font-medium flex items-center gap-1.5"
+                      style={{
+                        background: "rgba(52, 211, 153, 0.12)",
+                        border: "1px solid rgba(52, 211, 153, 0.3)",
+                        color: "var(--success)",
+                      }}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                       Testing Mode • All Features Unlimited
                     </span>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-[#433075]/20 border border-[#A58CF4]/20 space-y-3">
+                  <div
+                    className="p-4 rounded-xl space-y-3"
+                    style={{
+                      background: "var(--surface-1)",
+                      border: "1px solid var(--border-0)",
+                    }}
+                  >
                     <div className="flex justify-between text-[13px]">
-                      <span className="text-[rgba(250,250,250,0.7)]">Active Companions</span>
-                      <span className="font-semibold text-[#FAFAFA]">{avatars.length} (Unlimited)</span>
-                    </div>
-                    <div className="flex justify-between text-[13px]">
-                      <span className="text-[rgba(250,250,250,0.7)]">Memory Vectors Preserved</span>
-                      <span className="font-semibold text-[#FAFAFA]">
-                        {avatars.reduce((acc, a) => acc + (a.memory_count || 0), 0)} memories (Unlimited)
+                      <span style={{ color: "var(--text-1)" }}>Active Companions</span>
+                      <span className="font-semibold" style={{ color: "var(--text-0)" }}>
+                        {avatars.length} (Unlimited)
                       </span>
                     </div>
                     <div className="flex justify-between text-[13px]">
-                      <span className="text-[rgba(250,250,250,0.7)]">Chat, Voice & Video</span>
-                      <span className="font-semibold text-[#A58CF4]">Unlimited Access</span>
+                      <span style={{ color: "var(--text-1)" }}>Memory Vectors Preserved</span>
+                      <span className="font-semibold" style={{ color: "var(--text-0)" }}>
+                        {avatars.reduce((acc, a) => acc + (a.memory_count || 0), 0)} memories
+                      </span>
                     </div>
                     <div className="flex justify-between text-[13px]">
-                      <span className="text-[rgba(250,250,250,0.7)]">Anti-Hallucination Guardrails</span>
-                      <span className="font-semibold text-[#A58CF4]">Active & Grounded</span>
+                      <span style={{ color: "var(--text-1)" }}>Chat, Voice & 3D Video</span>
+                      <span className="font-semibold" style={{ color: "var(--brand-glow)" }}>
+                        Unlimited Access
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-[13px]">
+                      <span style={{ color: "var(--text-1)" }}>Anti-Hallucination Guardrails</span>
+                      <span className="font-semibold" style={{ color: "var(--brand-glow)" }}>
+                        Active & Grounded
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -255,31 +355,45 @@ export default function SettingsPage() {
             {/* TAB 2: COMPANIONS & CONSENT */}
             {activeTab === "companions" && (
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
-                    <h3 className="text-[20px] font-medium text-[#FAFAFA]">
+                    <h3
+                      className="text-[20px] font-medium"
+                      style={{ color: "var(--text-0)", fontFamily: "var(--font-display)" }}
+                    >
                       Your Active Companions
                     </h3>
-                    <p className="text-[12.5px] text-[rgba(250,250,250,0.65)]">
+                    <p className="text-[12.5px]" style={{ color: "var(--text-1)" }}>
                       Ethical attestation ledgers and grounded memory profiles.
                     </p>
                   </div>
                   <Link
                     href="/onboarding"
-                    className="btn-pill-primary text-[12px] px-4 py-2 flex items-center gap-1.5 no-underline"
+                    className="btn btn-primary btn-sm flex items-center gap-1.5"
+                    style={{ textDecoration: "none" }}
                   >
                     <Plus size={14} /> New Companion
                   </Link>
                 </div>
 
                 {loading ? (
-                  <p className="text-[13px] text-[rgba(250,250,250,0.6)]">Loading companions...</p>
+                  <p className="text-[13px]" style={{ color: "var(--text-2)" }}>Loading companions...</p>
                 ) : avatars.length === 0 ? (
-                  <div className="rounded-[24px] bg-[#0D0D0D] p-8 border border-[#A58CF4]/20 text-center">
-                    <p className="text-[13px] text-[rgba(250,250,250,0.6)] mb-4">
+                  <div
+                    className="rounded-[24px] p-8 text-center"
+                    style={{
+                      background: "var(--surface-0)",
+                      border: "1px solid var(--border-0)",
+                    }}
+                  >
+                    <p className="text-[13px] mb-4" style={{ color: "var(--text-1)" }}>
                       You have not created any companion presence yet.
                     </p>
-                    <Link href="/onboarding" className="btn-pill-primary text-[12px] px-5 py-2 no-underline">
+                    <Link
+                      href="/onboarding"
+                      className="btn btn-primary btn-sm"
+                      style={{ textDecoration: "none" }}
+                    >
                       Create First Companion
                     </Link>
                   </div>
@@ -287,42 +401,76 @@ export default function SettingsPage() {
                   avatars.map((avatar) => (
                     <div
                       key={avatar.id}
-                      className="rounded-[24px] bg-[#0D0D0D] p-6 border border-[#A58CF4]/20 shadow-md space-y-4"
+                      className="rounded-[24px] p-6 space-y-4"
+                      style={{
+                        background: "var(--surface-0)",
+                        border: "1px solid var(--border-0)",
+                        boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+                      }}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
                         <div className="flex items-center gap-3.5">
-                          <div className="w-11 h-11 rounded-full bg-[#433075] border border-[#A58CF4]/30 text-[#FAFAFA] flex items-center justify-center font-medium text-[15px]">
+                          <div
+                            className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-[15px] text-[#FFD166]"
+                            style={{
+                              background: "linear-gradient(135deg, #210B2C, #3B184C, #BC96E6)",
+                              border: "1.5px solid rgba(255, 209, 102, 0.5)",
+                              boxShadow: "0 0 16px rgba(255, 209, 102, 0.35)",
+                            }}
+                          >
                             {avatar.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <h4 className="text-[15px] font-medium text-[#FAFAFA]">
+                            <h4 className="text-[15.5px] font-semibold" style={{ color: "#FAF6FF" }}>
                               {avatar.name}
                             </h4>
-                            <p className="text-[11.5px] text-[rgba(250,250,250,0.6)]">
+                            <p className="text-[12px]" style={{ color: "var(--text-2)" }}>
                               {avatar.relationship} • {avatar.subject_type === "living" ? "Living Legacy" : "In Memoriam"}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-1 rounded-full bg-[#433075]/30 border border-[#A58CF4]/30 text-[#A58CF4] text-[11px] font-medium">
+                          <span
+                            className="px-3 py-1 rounded-full text-[11px] font-bold"
+                            style={{
+                              background: "rgba(255, 209, 102, 0.15)",
+                              border: "1px solid rgba(255, 209, 102, 0.4)",
+                              color: "var(--sunglow)",
+                            }}
+                          >
                             {avatar.is_active ? "Active" : "Paused"}
                           </span>
-                          <span className="px-2.5 py-1 rounded-full bg-[#0D0D0D] border border-[#A58CF4]/20 text-[rgba(250,250,250,0.7)] text-[11px]">
+                          <span
+                            className="px-2.5 py-1 rounded-full text-[11px]"
+                            style={{
+                              background: "var(--surface-1)",
+                              border: "1px solid var(--border-0)",
+                              color: "var(--text-1)",
+                            }}
+                          >
                             {avatar.memory_count || 0} Stories
                           </span>
                         </div>
                       </div>
 
-                      <div className="p-3 rounded-xl bg-[#433075]/15 border border-[#A58CF4]/15 text-[11.5px] text-[rgba(250,250,250,0.75)]">
-                        <strong>Consent Status:</strong> {avatar.consent_status || "granted"} •{" "}
-                        <strong>Ledger:</strong> Append-only attestation recorded
+                      <div
+                        className="p-3 rounded-xl text-[11.5px]"
+                        style={{
+                          background: "var(--surface-1)",
+                          border: "1px solid var(--border-0)",
+                          color: "var(--text-1)",
+                        }}
+                      >
+                        <strong style={{ color: "var(--text-0)" }}>Consent Status:</strong> {avatar.consent_status || "granted"} •{" "}
+                        <strong style={{ color: "var(--text-0)" }}>Ledger:</strong> Append-only attestation recorded
                       </div>
 
                       <div className="flex items-center justify-end gap-2.5 pt-1 flex-wrap">
                         <Link
                           href={`/chat?avatarId=${avatar.id}`}
-                          className="btn-pill-primary text-[12px] px-4 py-1.5 no-underline"
+                          className="btn btn-primary btn-sm"
+                          style={{ textDecoration: "none", padding: "6px 14px", fontSize: 11.5 }}
                         >
                           Open Chat
                         </Link>
@@ -330,7 +478,8 @@ export default function SettingsPage() {
                           <button
                             onClick={() => handleRevokeConsent(avatar.id)}
                             disabled={revokingId === avatar.id || deletingAvatarId === avatar.id}
-                            className="btn-pill-ghost text-[11px] px-3 py-1.5 text-[rgba(250,250,250,0.7)] hover:text-[#FAFAFA]"
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: "6px 12px", fontSize: 11.5 }}
                           >
                             {revokingId === avatar.id ? "Revoking..." : "Revoke Consent"}
                           </button>
@@ -338,7 +487,8 @@ export default function SettingsPage() {
                         <button
                           onClick={() => handleDeleteAvatar(avatar)}
                           disabled={deletingAvatarId === avatar.id || revokingId === avatar.id}
-                          className="btn-pill-ghost text-[11px] px-3 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/30 border border-red-500/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: "6px 12px", fontSize: 11.5 }}
                         >
                           <Trash2 size={12} />
                           {deletingAvatarId === avatar.id ? "Deleting..." : "Delete Companion"}
@@ -353,29 +503,60 @@ export default function SettingsPage() {
             {/* TAB 3: DATA & ARCHIVES */}
             {activeTab === "data" && (
               <div className="space-y-6">
-                <div className="rounded-[24px] bg-[#0D0D0D] p-6 sm:p-8 border border-[#A58CF4]/20 shadow-md">
+                <div
+                  className="rounded-[24px] p-6 sm:p-8"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-0)",
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+                  }}
+                >
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#433075] border border-[#A58CF4]/30 flex items-center justify-center text-[#A58CF4] shrink-0">
+                    <div
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                      style={{
+                        background: "rgba(255, 209, 102, 0.16)",
+                        border: "1px solid rgba(255, 209, 102, 0.4)",
+                        color: "var(--sunglow)",
+                      }}
+                    >
                       <FileArchive size={22} />
                     </div>
                     <div>
-                      <h3 className="text-[18px] font-medium text-[#FAFAFA]">
+                      <h3
+                        className="text-[18px] font-medium"
+                        style={{ color: "var(--text-0)", fontFamily: "var(--font-display)" }}
+                      >
                         Download Complete Sanctuary Archive
                       </h3>
-                      <p className="text-[13px] text-[rgba(250,250,250,0.65)] mt-1 leading-[1.5]">
+                      <p className="text-[13px] mt-1 leading-relaxed" style={{ color: "var(--text-1)" }}>
                         Export all preserved stories, entity graphs, conversation transcripts, and consent logs in an encrypted ZIP or JSON master format.
                       </p>
                     </div>
                   </div>
 
                   {exportError && (
-                    <div className="p-3.5 rounded-xl bg-[#433075]/40 border border-[#A58CF4]/30 text-[#FAFAFA] text-[12.5px] mb-4">
+                    <div
+                      className="p-3.5 rounded-xl text-[12.5px] mb-4"
+                      style={{
+                        background: "rgba(248, 113, 113, 0.12)",
+                        border: "1px solid rgba(248, 113, 113, 0.3)",
+                        color: "var(--text-0)",
+                      }}
+                    >
                       {exportError}
                     </div>
                   )}
 
                   {exportSuccess && (
-                    <div className="p-3.5 rounded-xl bg-[#433075]/30 border border-[#A58CF4]/40 text-[#A58CF4] text-[12.5px] mb-4 flex items-center gap-2">
+                    <div
+                      className="p-3.5 rounded-xl text-[12.5px] mb-4 flex items-center gap-2"
+                      style={{
+                        background: "rgba(52, 211, 153, 0.12)",
+                        border: "1px solid rgba(52, 211, 153, 0.3)",
+                        color: "var(--success)",
+                      }}
+                    >
                       <CheckCircle2 size={16} /> Archive generated and downloaded successfully!
                     </div>
                   )}
@@ -384,7 +565,7 @@ export default function SettingsPage() {
                     <button
                       onClick={() => handleExport("zip")}
                       disabled={exporting}
-                      className="btn-pill-primary text-[12.5px] px-5 py-2.5 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="btn btn-primary btn-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {exporting ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
                       <span>{exporting ? "Packaging..." : "Export ZIP Archive"}</span>
@@ -392,7 +573,7 @@ export default function SettingsPage() {
                     <button
                       onClick={() => handleExport("json")}
                       disabled={exporting}
-                      className="btn-pill-secondary text-[12.5px] px-5 py-2.5 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="btn btn-secondary btn-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       <Download size={14} />
                       <span>Export JSON Master</span>
@@ -400,11 +581,17 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[24px] bg-[#0D0D0D] p-6 border border-[#A58CF4]/20 shadow-md">
-                  <h4 className="text-[15px] font-medium text-[#FAFAFA] mb-2">
+                <div
+                  className="rounded-[24px] p-6"
+                  style={{
+                    background: "var(--surface-0)",
+                    border: "1px solid var(--border-0)",
+                  }}
+                >
+                  <h4 className="text-[15px] font-medium mb-2" style={{ color: "var(--text-0)" }}>
                     Zero Universal Training Guarantee
                   </h4>
-                  <p className="text-[12.5px] text-[rgba(250,250,250,0.65)] leading-[1.6]">
+                  <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--text-1)" }}>
                     Your family memories belong exclusively to you. Eternia never uses private journals, voice notes, or photos to train universal public foundation models. Every memory vector is strictly isolated by row-level security and tenant-specific encryption.
                   </p>
                 </div>
@@ -413,21 +600,30 @@ export default function SettingsPage() {
 
             {/* TAB 4: DANGER ZONE */}
             {activeTab === "danger" && (
-              <div className="rounded-[24px] bg-[#0D0D0D] p-6 sm:p-8 border border-[#A58CF4]/30 shadow-md space-y-4">
-                <div className="flex items-center gap-3 text-[#A58CF4]">
+              <div
+                className="rounded-[24px] p-6 sm:p-8 space-y-4"
+                style={{
+                  background: "rgba(248, 113, 113, 0.05)",
+                  border: "1px solid rgba(248, 113, 113, 0.25)",
+                }}
+              >
+                <div className="flex items-center gap-3" style={{ color: "var(--danger)" }}>
                   <AlertTriangle size={22} />
-                  <h3 className="text-[18px] font-medium text-[#FAFAFA]">
+                  <h3
+                    className="text-[18px] font-medium"
+                    style={{ color: "var(--text-0)", fontFamily: "var(--font-display)" }}
+                  >
                     Permanent Account Deletion
                   </h3>
                 </div>
-                <p className="text-[13px] text-[rgba(250,250,250,0.7)] leading-[1.6]">
+                <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-1)" }}>
                   Deleting your account will irreversibly erase all companion configurations, semantic vectors in Qdrant, parsed memories in Supabase, and conversation history. This cannot be undone.
                 </p>
 
                 <div className="pt-2">
                   <button
                     onClick={() => setShowDeleteModal(true)}
-                    className="btn-pill-primary text-[12.5px] px-5 py-2.5 flex items-center gap-2 bg-[#433075] text-[#FAFAFA] hover:bg-[#A58CF4] hover:text-[#0D0D0D] cursor-pointer"
+                    className="btn btn-danger btn-sm flex items-center gap-2 cursor-pointer"
                   >
                     <Trash2 size={15} />
                     <span>Delete Account & Wipe All Memories</span>
@@ -435,30 +631,41 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-
           </div>
-
         </div>
-
       </main>
 
       {/* Confirmation Modal for Deletion */}
       {showDeleteModal && (
         <div className="modal-backdrop">
-          <div className="modal-card">
-            <div className="flex items-center gap-2.5 text-[#A58CF4] mb-3">
-              <AlertTriangle size={24} />
-              <h3 className="text-[18px] font-medium text-[#FAFAFA]">
+          <div
+            className="w-full max-w-[480px] rounded-[28px] p-6 sm:p-7 relative text-left"
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--border-1)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.85)",
+            }}
+          >
+            <div className="flex items-center gap-2.5 mb-3" style={{ color: "var(--danger)" }}>
+              <AlertTriangle size={22} />
+              <h3 className="text-[18px] font-medium" style={{ color: "var(--text-0)" }}>
                 Confirm Irreversible Deletion
               </h3>
             </div>
 
-            <p className="text-[13px] text-[rgba(250,250,250,0.7)] leading-[1.6] mb-4">
-              Because this is an emotional sanctuary, we require explicit confirmation. Please type <strong className="text-[#FAFAFA]">DELETE</strong> below to wipe all companion models and data.
+            <p className="text-[13px] leading-relaxed mb-4" style={{ color: "var(--text-1)" }}>
+              Because this is an emotional sanctuary, we require explicit confirmation. Please type <strong style={{ color: "var(--text-0)" }}>DELETE</strong> below to wipe all companion models and data.
             </p>
 
             {deleteError && (
-              <div className="p-3 rounded-xl bg-[#433075]/40 border border-[#A58CF4]/30 text-[#FAFAFA] text-[12px] mb-4">
+              <div
+                className="p-3 rounded-xl text-[12px] mb-4"
+                style={{
+                  background: "rgba(248, 113, 113, 0.12)",
+                  border: "1px solid rgba(248, 113, 113, 0.3)",
+                  color: "var(--text-0)",
+                }}
+              >
                 {deleteError}
               </div>
             )}
@@ -471,11 +678,11 @@ export default function SettingsPage() {
               className="input mb-4"
             />
 
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(false)}
-                className="btn-pill-ghost text-[12px] px-4 py-2"
+                className="btn btn-ghost btn-sm"
                 disabled={isDeleting}
               >
                 Cancel
@@ -483,7 +690,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={handleDeleteAccount}
-                className="btn-pill-primary text-[12px] px-4 py-2"
+                className="btn btn-danger btn-sm"
                 disabled={isDeleting}
               >
                 {isDeleting ? "Wiping Data..." : "Permanently Delete"}
@@ -492,7 +699,6 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

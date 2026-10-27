@@ -7,4 +7,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Supabase environment variables missing in frontend.");
 }
 
-export const supabase = createClient(supabaseUrl || "", supabaseAnonKey || "");
+export const supabase = createClient(
+  supabaseUrl || "https://placeholder-eternia.supabase.co",
+  supabaseAnonKey || "placeholder-anon-key"
+);
