@@ -139,7 +139,7 @@ function CallContent() {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch {}
+        } catch { }
       }
     };
   }, [avatarId]);
@@ -162,7 +162,7 @@ function CallContent() {
     if (anamClientRef.current) {
       const client = anamClientRef.current;
       anamClientRef.current = null;
-      client.stopStreaming().catch(() => {});
+      client.stopStreaming().catch(() => { });
     }
     setIsAnamConnected(false);
     setIsAnamConnecting(false);
@@ -211,7 +211,7 @@ function CallContent() {
       anamClientRef.current = null;
       try {
         await prevClient.stopStreaming();
-      } catch {}
+      } catch { }
     }
 
     try {
@@ -308,7 +308,7 @@ function CallContent() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (anamClientRef.current) {
-        anamClientRef.current.stopStreaming().catch(() => {});
+        anamClientRef.current.stopStreaming().catch(() => { });
       }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -318,7 +318,7 @@ function CallContent() {
       if (anamClientRef.current) {
         const client = anamClientRef.current;
         anamClientRef.current = null;
-        client.stopStreaming().catch(() => {});
+        client.stopStreaming().catch(() => { });
       }
     };
   }, []);
@@ -335,7 +335,7 @@ function CallContent() {
         if (videoEl) {
           videoEl.muted = isMuted;
           if (videoEl.paused) {
-            videoEl.play().catch(() => {});
+            videoEl.play().catch(() => { });
           }
         }
         // Anam.ai renders photorealistic 25fps facial animation & lip-sync over WebRTC
@@ -430,7 +430,7 @@ function CallContent() {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch {}
+      } catch { }
     }
     setIsListening(false);
     const textToSend = lastTranscriptRef.current.trim();
@@ -508,12 +508,12 @@ function CallContent() {
     if (anamClientRef.current) {
       const client = anamClientRef.current;
       anamClientRef.current = null;
-      await client.stopStreaming().catch(() => {});
+      await client.stopStreaming().catch(() => { });
     }
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch {}
+      } catch { }
     }
     router.push(activeAvatar ? `/chat?avatarId=${activeAvatar.id}` : "/chat");
   };
@@ -545,9 +545,8 @@ function CallContent() {
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-[#433075]/25 border border-transparent hover:border-[#A58CF4]/20 transition-all text-left cursor-pointer"
               >
                 <span
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    isAnamConnected ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" : "bg-amber-400"
-                  }`}
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${isAnamConnected ? "bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" : "bg-amber-400"
+                    }`}
                 />
                 <div>
                   <h1 className="text-[13px] font-semibold tracking-wide text-[#FAFAFA] leading-tight flex items-center gap-1.5">
@@ -575,11 +574,10 @@ function CallContent() {
                         key={av.id}
                         type="button"
                         onClick={() => switchAvatar(av)}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[12px] transition-all cursor-pointer ${
-                          av.id === activeAvatar.id
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[12px] transition-all cursor-pointer ${av.id === activeAvatar.id
                             ? "bg-[#433075]/60 text-white font-medium border border-[#A58CF4]/40"
                             : "hover:bg-[#433075]/30 text-[rgba(250,250,250,0.8)] hover:text-white"
-                        }`}
+                          }`}
                       >
                         <div className="w-6 h-6 rounded-full bg-[#433075]/40 border border-[#A58CF4]/30 flex items-center justify-center text-[10px] font-semibold text-[#A58CF4] overflow-hidden shrink-0">
                           {av.photo_url ? (
@@ -651,7 +649,7 @@ function CallContent() {
         onClick={() => {
           const videoEl = document.getElementById("anam-persona-video");
           if (videoEl && videoEl.paused) {
-            videoEl.play().catch(() => {});
+            videoEl.play().catch(() => { });
           }
         }}
         className="flex-1 min-h-0 flex flex-col items-center justify-between p-2 sm:px-6 sm:py-3 overflow-hidden w-full max-w-6xl mx-auto relative"
@@ -673,16 +671,14 @@ function CallContent() {
             id="anam-persona-video"
             autoPlay
             playsInline
-            className={`w-full h-full object-cover transition-opacity duration-700 ${
-              isAnamConnected ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-            }`}
+            className={`w-full h-full object-cover transition-opacity duration-700 ${isAnamConnected ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+              }`}
           />
 
           {/* Seamless Companion Photo Display (During Initial Connect) */}
           <div
-            className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${
-              isAnamConnected ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
-            }`}
+            className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${isAnamConnected ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
+              }`}
           >
             {photoUrl ? (
               <div className="relative w-full h-full overflow-hidden bg-black">
@@ -696,9 +692,8 @@ function CallContent() {
                 <img
                   src={photoUrl}
                   alt={activeAvatar?.name || "Companion"}
-                  className={`relative w-full h-full object-cover object-[center_65%] transition-transform duration-1000 ${
-                    isSpeaking ? "scale-[1.03]" : "scale-100"
-                  }`}
+                  className={`relative w-full h-full object-cover object-[center_65%] transition-transform duration-1000 ${isSpeaking ? "scale-[1.03]" : "scale-100"
+                    }`}
                 />
                 {/* Subtle cinematic gradient vignette */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
@@ -728,8 +723,8 @@ function CallContent() {
               {isAnamConnected
                 ? "25fps Live Digital Human"
                 : isAnamConnecting
-                ? "Connecting Live Avatar..."
-                : "Interactive 16:9 Ready"}
+                  ? "Connecting Live Avatar..."
+                  : "Interactive 16:9 Ready"}
             </span>
           </div>
 
@@ -798,11 +793,10 @@ function CallContent() {
             <button
               type="button"
               onClick={toggleMute}
-              className={`p-3 rounded-full border transition-all cursor-pointer ${
-                isMuted
+              className={`p-3 rounded-full border transition-all cursor-pointer ${isMuted
                   ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
                   : "bg-[#433075]/30 hover:bg-[#433075]/60 border-[#A58CF4]/25 text-[#FAFAFA]"
-              }`}
+                }`}
               title={isMuted ? "Unmute Audio" : "Mute Audio"}
             >
               {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
@@ -812,11 +806,10 @@ function CallContent() {
             <button
               type="button"
               onClick={isListening ? stopListening : startListening}
-              className={`relative p-4 rounded-full border transition-all cursor-pointer shadow-xl ${
-                isListening
+              className={`relative p-4 rounded-full border transition-all cursor-pointer shadow-xl ${isListening
                   ? "bg-rose-600 border-rose-400 text-white animate-pulse scale-110 shadow-rose-600/50"
                   : "bg-gradient-to-tr from-[#433075] to-[#A58CF4] hover:brightness-110 border-[#A58CF4]/50 text-white shadow-[#433075]/60 hover:scale-105"
-              }`}
+                }`}
               title={isListening ? "Listening... Click to stop" : "Click to speak"}
             >
               {isListening ? <MicOff size={22} /> : <Mic size={22} />}

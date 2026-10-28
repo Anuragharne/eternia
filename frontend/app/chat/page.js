@@ -598,7 +598,7 @@ function ChatContent() {
             <div className="flex-1 min-h-0 overflow-y-auto space-y-1 py-1 no-scrollbar">
               {loadingAvatars ? (
                 <div style={{ padding: "12px 8px" }}>
-                  {[1,2,3].map(i => (
+                  {[1, 2, 3].map(i => (
                     <div key={i} className="skeleton" style={{ height: 52, borderRadius: 12, marginBottom: 6 }} />
                   ))}
                 </div>
@@ -635,9 +635,8 @@ function ChatContent() {
                         ? "inset 3px 0 0 #FFD166, 0 0 16px rgba(255, 209, 102, 0.15)"
                         : "none",
                     }}
-                    className={`group relative cursor-pointer ${
-                      activeAvatar?.id !== av.id ? "hover:bg-white/[0.04]" : ""
-                    }`}
+                    className={`group relative cursor-pointer ${activeAvatar?.id !== av.id ? "hover:bg-white/[0.04]" : ""
+                      }`}
                   >
                     <div
                       style={{
@@ -965,15 +964,14 @@ function ChatContent() {
                           )}
                         </button>
 
-                      <span
-                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium ${
-                          m.grounded
-                            ? "grounding-badge-grounded"
-                            : "grounding-badge-gentle"
-                        }`}
-                      >
-                        {m.grounded ? "✓ Grounded in Memory" : "✦ Gentle Reflection"}
-                      </span>
+                        <span
+                          className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium ${m.grounded
+                              ? "grounding-badge-grounded"
+                              : "grounding-badge-gentle"
+                            }`}
+                        >
+                          {m.grounded ? "✓ Grounded in Memory" : "✦ Gentle Reflection"}
+                        </span>
                       </>
                     )}
                   </div>
@@ -1017,11 +1015,10 @@ function ChatContent() {
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  className={`transition-all p-1.5 rounded-full cursor-pointer flex items-center justify-center ${
-                    isRecording
+                  className={`transition-all p-1.5 rounded-full cursor-pointer flex items-center justify-center ${isRecording
                       ? "bg-red-600 text-white shadow-[0_0_16px_rgba(239,68,68,0.8)] animate-pulse"
                       : "hover:text-[#EEF0F6]"
-                  }`}
+                    }`}
                   style={{ color: isRecording ? "#fff" : "var(--text-1)" }}
                   title={isRecording ? "Click to stop talking & send" : "Click to talk (Microphone)"}
                 >

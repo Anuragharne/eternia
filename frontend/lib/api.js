@@ -221,11 +221,11 @@ function generateMockEmpatheticResponse(avatar, prompt, memories) {
     message: reply,
     grounded_memories: recalledMemory
       ? [
-          {
-            content: recalledMemory.content,
-            relevance_score: recalledMemory.relevance_score || 0.94,
-          },
-        ]
+        {
+          content: recalledMemory.content,
+          relevance_score: recalledMemory.relevance_score || 0.94,
+        },
+      ]
       : [],
   };
 }
@@ -679,7 +679,7 @@ export const api = {
           if (av) {
             voiceId = av.persona_config?.elevenlabs_voice_id || av.voice_id;
           }
-        } catch {}
+        } catch { }
       }
 
       const url = `${API_BASE_URL}/voice/${avatarId}/speak`;
